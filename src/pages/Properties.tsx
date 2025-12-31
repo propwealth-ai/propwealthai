@@ -6,8 +6,7 @@ import {
   MapPin, 
   DollarSign,
   TrendingUp,
-  Filter,
-  X
+  Filter
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,6 +30,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import PropertyDetailsModal from '@/components/properties/PropertyDetailsModal';
 
 interface Property {
   id: string;
@@ -41,6 +41,7 @@ interface Property {
   purchase_price: number | null;
   current_value: number | null;
   monthly_rent: number | null;
+  monthly_expenses?: number | null;
   status: string;
 }
 
@@ -54,6 +55,8 @@ const Properties: React.FC = () => {
   const [filter, setFilter] = useState<string>('all');
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -69,6 +72,41 @@ const Properties: React.FC = () => {
   useEffect(() => {
     if (profile?.team_id) {
       fetchProperties();
+
+      // Set up real-time subscription
+      const channel = supabase
+        .channel('properties-realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'properties'
+          },
+          (payload) => {
+            console.log('Realtime update:', payload);
+            if (payload.eventType === 'INSERT') {
+              setProperties(prev => [payload.new as Property, ...prev]);
+              toast({
+                title: "New Property",
+                description: "A team member added a new property"
+              });
+            } else if (payload.eventType === 'UPDATE') {
+              setProperties(prev => 
+                prev.map(p => p.id === (payload.new as Property).id ? payload.new as Property : p)
+              );
+            } else if (payload.eventType === 'DELETE') {
+              setProperties(prev => 
+                prev.filter(p => p.id !== (payload.old as Property).id)
+              );
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
     }
   }, [profile?.team_id]);
 
@@ -146,8 +184,8 @@ const Properties: React.FC = () => {
   };
 
   const handlePropertyClick = (property: Property) => {
-    // Navigate to analyzer with property data
-    navigate('/analyzer', { state: { property } });
+    setSelectedProperty(property);
+    setIsDetailsOpen(true);
   };
 
   const resetForm = () => {
@@ -470,6 +508,18 @@ const Properties: React.FC = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Property Details Modal */}
+      <PropertyDetailsModal
+        property={selectedProperty}
+        isOpen={isDetailsOpen}
+        onClose={() => {
+          setIsDetailsOpen(false);
+          setSelectedProperty(null);
+        }}
+        onUpdate={fetchProperties}
+        isRTL={isRTL}
+      />
     </div>
   );
 };
