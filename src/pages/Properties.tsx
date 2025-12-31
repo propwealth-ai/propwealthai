@@ -1,16 +1,35 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   Building2, 
   Plus, 
   MapPin, 
   DollarSign,
   TrendingUp,
-  Filter
+  Filter,
+  X
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { 
+  Dialog, 
+  DialogContent, 
+  DialogHeader, 
+  DialogTitle,
+  DialogDescription 
+} from '@/components/ui/dialog';
+import { 
+  Select, 
+  SelectContent, 
+  SelectItem, 
+  SelectTrigger, 
+  SelectValue 
+} from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
 interface Property {
@@ -28,9 +47,24 @@ interface Property {
 const Properties: React.FC = () => {
   const { t, isRTL } = useLanguage();
   const { profile } = useAuth();
+  const navigate = useNavigate();
+  const { toast } = useToast();
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<string>('all');
+  const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  
+  // Form state
+  const [formData, setFormData] = useState({
+    address: '',
+    city: '',
+    state: '',
+    property_type: 'Single-family',
+    purchase_price: '',
+    monthly_rent: '',
+    status: 'new' as const
+  });
 
   useEffect(() => {
     if (profile?.team_id) {
@@ -48,6 +82,84 @@ const Properties: React.FC = () => {
       setProperties(data as Property[]);
     }
     setLoading(false);
+  };
+
+  const handleAddProperty = async () => {
+    if (!profile?.team_id) {
+      toast({
+        title: "Error",
+        description: "You must be part of a team to add properties",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!formData.address) {
+      toast({
+        title: "Error",
+        description: "Address is required",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    const { error } = await supabase.from('properties').insert({
+      address: formData.address,
+      city: formData.city || null,
+      state: formData.state || null,
+      property_type: formData.property_type,
+      purchase_price: formData.purchase_price ? parseFloat(formData.purchase_price) : null,
+      monthly_rent: formData.monthly_rent ? parseFloat(formData.monthly_rent) : null,
+      status: formData.status,
+      team_id: profile.team_id
+    });
+
+    setIsSubmitting(false);
+
+    if (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add property",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    toast({
+      title: "Success",
+      description: "Property added successfully"
+    });
+
+    setFormData({
+      address: '',
+      city: '',
+      state: '',
+      property_type: 'Single-family',
+      purchase_price: '',
+      monthly_rent: '',
+      status: 'new'
+    });
+    setIsAddDialogOpen(false);
+    fetchProperties();
+  };
+
+  const handlePropertyClick = (property: Property) => {
+    // Navigate to analyzer with property data
+    navigate('/analyzer', { state: { property } });
+  };
+
+  const resetForm = () => {
+    setFormData({
+      address: '',
+      city: '',
+      state: '',
+      property_type: 'Single-family',
+      purchase_price: '',
+      monthly_rent: '',
+      status: 'new'
+    });
   };
 
   const statusColors: Record<string, string> = {
@@ -114,9 +226,12 @@ const Properties: React.FC = () => {
             Manage your real estate portfolio
           </p>
         </div>
-        <Button className="btn-premium text-primary-foreground gap-2">
+        <Button 
+          onClick={() => setIsAddDialogOpen(true)}
+          className="btn-premium text-primary-foreground gap-2"
+        >
           <Plus className="w-4 h-4" />
-          Add Property
+          {t('properties.addProperty') || 'Add Property'}
         </Button>
       </div>
 
@@ -157,6 +272,7 @@ const Properties: React.FC = () => {
             return (
               <div
                 key={property.id}
+                onClick={() => handlePropertyClick(property)}
                 className="glass-card overflow-hidden animate-fade-in hover:border-primary/30 transition-all cursor-pointer group"
                 style={{ animationDelay: `${index * 100}ms` }}
               >
@@ -235,12 +351,125 @@ const Properties: React.FC = () => {
           <p className="text-muted-foreground mb-6">
             Start building your portfolio by adding your first property
           </p>
-          <Button className="btn-premium text-primary-foreground gap-2">
+          <Button 
+            onClick={() => setIsAddDialogOpen(true)}
+            className="btn-premium text-primary-foreground gap-2"
+          >
             <Plus className="w-4 h-4" />
-            Add Your First Property
+            {t('properties.addFirstProperty') || 'Add Your First Property'}
           </Button>
         </div>
       )}
+
+      {/* Add Property Dialog */}
+      <Dialog open={isAddDialogOpen} onOpenChange={(open) => { setIsAddDialogOpen(open); if (!open) resetForm(); }}>
+        <DialogContent className="sm:max-w-[500px] bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="text-foreground">{t('properties.addProperty') || 'Add Property'}</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              {t('properties.addPropertyDesc') || 'Add a new property to your portfolio'}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="address" className="text-foreground">{t('properties.address') || 'Address'} *</Label>
+              <Input
+                id="address"
+                placeholder="123 Main Street"
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                className="bg-secondary border-border"
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="city" className="text-foreground">{t('properties.city') || 'City'}</Label>
+                <Input
+                  id="city"
+                  placeholder="Miami"
+                  value={formData.city}
+                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                  className="bg-secondary border-border"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="state" className="text-foreground">{t('properties.state') || 'State'}</Label>
+                <Input
+                  id="state"
+                  placeholder="FL"
+                  value={formData.state}
+                  onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                  className="bg-secondary border-border"
+                />
+              </div>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="property_type" className="text-foreground">{t('properties.propertyType') || 'Property Type'}</Label>
+              <Select 
+                value={formData.property_type} 
+                onValueChange={(value) => setFormData({ ...formData, property_type: value })}
+              >
+                <SelectTrigger className="bg-secondary border-border">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Single-family">Single-family</SelectItem>
+                  <SelectItem value="Multi-family">Multi-family</SelectItem>
+                  <SelectItem value="Duplex">Duplex</SelectItem>
+                  <SelectItem value="Triplex">Triplex</SelectItem>
+                  <SelectItem value="Apartment">Apartment</SelectItem>
+                  <SelectItem value="Commercial">Commercial</SelectItem>
+                  <SelectItem value="Land">Land</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="purchase_price" className="text-foreground">{t('properties.purchasePrice') || 'Purchase Price ($)'}</Label>
+                <Input
+                  id="purchase_price"
+                  type="number"
+                  placeholder="250000"
+                  value={formData.purchase_price}
+                  onChange={(e) => setFormData({ ...formData, purchase_price: e.target.value })}
+                  className="bg-secondary border-border"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="monthly_rent" className="text-foreground">{t('properties.monthlyRent') || 'Monthly Rent ($)'}</Label>
+                <Input
+                  id="monthly_rent"
+                  type="number"
+                  placeholder="2000"
+                  value={formData.monthly_rent}
+                  onChange={(e) => setFormData({ ...formData, monthly_rent: e.target.value })}
+                  className="bg-secondary border-border"
+                />
+              </div>
+            </div>
+          </div>
+          
+          <div className="flex justify-end gap-3">
+            <Button 
+              variant="outline" 
+              onClick={() => { setIsAddDialogOpen(false); resetForm(); }}
+            >
+              {t('common.cancel') || 'Cancel'}
+            </Button>
+            <Button 
+              onClick={handleAddProperty}
+              disabled={isSubmitting || !formData.address}
+              className="btn-premium text-primary-foreground"
+            >
+              {isSubmitting ? (t('common.saving') || 'Saving...') : (t('properties.addProperty') || 'Add Property')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

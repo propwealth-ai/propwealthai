@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   TrendingUp, 
   Building2, 
@@ -6,7 +7,10 @@ import {
   Percent,
   ArrowUpRight,
   ArrowDownRight,
-  Plus
+  Plus,
+  Bot,
+  GraduationCap,
+  Users
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +20,31 @@ import { cn } from '@/lib/utils';
 const Dashboard: React.FC = () => {
   const { t, isRTL } = useLanguage();
   const { profile } = useAuth();
+  const navigate = useNavigate();
+
+  const quickActions = [
+    { 
+      title: t('dashboard.analyzeNewDeal') || 'Analyze New Deal', 
+      desc: t('dashboard.analyzeNewDealDesc') || 'Run AI analysis on a property', 
+      icon: Bot,
+      path: '/analyzer',
+      color: 'text-blue-400'
+    },
+    { 
+      title: t('dashboard.continueLearning') || 'Continue Learning', 
+      desc: t('dashboard.continueLearningDesc') || 'PropWealth Academy', 
+      icon: GraduationCap,
+      path: '/academy',
+      color: 'text-purple-400'
+    },
+    { 
+      title: t('dashboard.inviteTeam') || 'Invite Team Member', 
+      desc: t('dashboard.inviteTeamDesc') || 'Grow your power team', 
+      icon: Users,
+      path: '/team',
+      color: 'text-primary'
+    },
+  ];
 
   const stats = [
     {
@@ -87,9 +116,12 @@ const Dashboard: React.FC = () => {
             Here's what's happening with your portfolio today.
           </p>
         </div>
-        <Button className="btn-premium text-primary-foreground gap-2">
+        <Button 
+          onClick={() => navigate('/properties')}
+          className="btn-premium text-primary-foreground gap-2"
+        >
           <Plus className="w-4 h-4" />
-          Add Property
+          {t('dashboard.addProperty') || 'Add Property'}
         </Button>
       </div>
 
@@ -134,8 +166,9 @@ const Dashboard: React.FC = () => {
           {recentProperties.map((property, index) => (
             <div 
               key={index}
+              onClick={() => navigate('/properties')}
               className={cn(
-                "flex items-center justify-between p-4 bg-secondary/50 rounded-lg hover:bg-secondary transition-colors",
+                "flex items-center justify-between p-4 bg-secondary/50 rounded-lg hover:bg-secondary transition-colors cursor-pointer",
                 isRTL && "flex-row-reverse"
               )}
             >
@@ -164,16 +197,15 @@ const Dashboard: React.FC = () => {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {[
-          { title: 'Analyze New Deal', desc: 'Run AI analysis on a property', icon: '🤖' },
-          { title: 'Continue Learning', desc: 'PropWealth Academy', icon: '📚' },
-          { title: 'Invite Team Member', desc: 'Grow your power team', icon: '👥' },
-        ].map((action, index) => (
+        {quickActions.map((action, index) => (
           <div 
             key={index}
+            onClick={() => navigate(action.path)}
             className="glass-card p-6 cursor-pointer hover:border-primary/30 transition-all group"
           >
-            <div className="text-4xl mb-4">{action.icon}</div>
+            <div className={cn("w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4", action.color)}>
+              <action.icon className="w-6 h-6" />
+            </div>
             <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
               {action.title}
             </h3>
