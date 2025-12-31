@@ -1,0 +1,134 @@
+import React from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
+import { 
+  LayoutDashboard, 
+  Brain, 
+  GraduationCap, 
+  Users, 
+  Settings, 
+  Building2,
+  LogOut,
+  ChevronLeft,
+  ChevronRight
+} from 'lucide-react';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { cn } from '@/lib/utils';
+
+interface SidebarProps {
+  collapsed: boolean;
+  onToggle: () => void;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
+  const { t, isRTL } = useLanguage();
+  const { signOut, profile } = useAuth();
+  const location = useLocation();
+
+  const navItems = [
+    { icon: LayoutDashboard, label: t('nav.dashboard'), path: '/dashboard' },
+    { icon: Brain, label: t('nav.analyzer'), path: '/analyzer' },
+    { icon: GraduationCap, label: t('nav.academy'), path: '/academy' },
+    { icon: Users, label: t('nav.team'), path: '/team' },
+    { icon: Building2, label: t('nav.properties'), path: '/properties' },
+    { icon: Settings, label: t('nav.settings'), path: '/settings' },
+  ];
+
+  const isActive = (path: string) => location.pathname === path;
+
+  return (
+    <aside 
+      className={cn(
+        "fixed top-0 h-screen bg-sidebar border-r border-sidebar-border flex flex-col transition-all duration-300 z-50",
+        collapsed ? "w-20" : "w-64",
+        isRTL ? "right-0 border-l border-r-0" : "left-0"
+      )}
+    >
+      {/* Logo */}
+      <div className="p-6 flex items-center justify-between border-b border-sidebar-border">
+        {!collapsed && (
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
+              <Building2 className="w-5 h-5 text-primary-foreground" />
+            </div>
+            <div>
+              <h1 className="font-bold text-foreground text-lg">PropWealth</h1>
+              <p className="text-xs text-muted-foreground">AI Investment OS</p>
+            </div>
+          </div>
+        )}
+        {collapsed && (
+          <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center mx-auto">
+            <Building2 className="w-5 h-5 text-primary-foreground" />
+          </div>
+        )}
+      </div>
+
+      {/* Toggle Button */}
+      <button
+        onClick={onToggle}
+        className={cn(
+          "absolute top-20 -right-3 w-6 h-6 rounded-full bg-secondary border border-border flex items-center justify-center hover:bg-primary hover:border-primary transition-colors",
+          isRTL && "right-auto -left-3"
+        )}
+      >
+        {collapsed ? (
+          isRTL ? <ChevronLeft className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />
+        ) : (
+          isRTL ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />
+        )}
+      </button>
+
+      {/* Navigation */}
+      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+        {navItems.map((item) => (
+          <NavLink
+            key={item.path}
+            to={item.path}
+            className={cn(
+              "nav-item",
+              isActive(item.path) && "active",
+              collapsed && "justify-center px-3"
+            )}
+          >
+            <item.icon className="w-5 h-5 flex-shrink-0" />
+            {!collapsed && <span className="truncate">{item.label}</span>}
+          </NavLink>
+        ))}
+      </nav>
+
+      {/* User Section */}
+      <div className="p-4 border-t border-sidebar-border">
+        {!collapsed && profile && (
+          <div className="flex items-center gap-3 mb-4 px-2">
+            <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
+              <span className="text-sm font-medium text-foreground">
+                {profile.full_name?.charAt(0) || profile.email.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-foreground truncate">
+                {profile.full_name || 'User'}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">
+                {profile.email}
+              </p>
+            </div>
+          </div>
+        )}
+        <button
+          onClick={signOut}
+          className={cn(
+            "nav-item w-full text-destructive hover:bg-destructive/10",
+            collapsed && "justify-center px-3"
+          )}
+        >
+          <LogOut className="w-5 h-5 flex-shrink-0" />
+          {!collapsed && <span>{t('nav.logout')}</span>}
+        </button>
+      </div>
+    </aside>
+  );
+};
+
+export default Sidebar;
