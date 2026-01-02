@@ -1,11 +1,11 @@
-import React from 'react';
+import { ReactNode } from 'react';
 import { useRBAC, AppRole, RolePermissions } from '@/hooks/useRBAC';
 
 interface RoleGateProps {
-  children: React.ReactNode;
+  children: ReactNode;
   allowedRoles?: AppRole[];
   requiredPermission?: keyof RolePermissions;
-  fallback?: React.ReactNode;
+  fallback?: ReactNode;
   showNothing?: boolean;
 }
 
@@ -21,13 +21,13 @@ interface RoleGateProps {
  *   <FinancialData />
  * </RoleGate>
  */
-const RoleGate: React.FC<RoleGateProps> = ({
+const RoleGate = ({
   children,
   allowedRoles,
   requiredPermission,
   fallback = null,
   showNothing = true,
-}) => {
+}: RoleGateProps) => {
   const { hasAnyRole, canView, loading } = useRBAC();
 
   // While loading, show nothing or fallback

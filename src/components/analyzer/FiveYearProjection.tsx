@@ -1,4 +1,3 @@
-import React from 'react';
 import { TrendingUp, Wallet, Calendar, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -14,13 +13,13 @@ interface FiveYearProjectionProps {
   appreciationRate?: number;
 }
 
-const FiveYearProjection: React.FC<FiveYearProjectionProps> = ({
+const FiveYearProjection = ({
   currentValue,
   purchasePrice,
   currency,
   downPaymentPercent = 20,
   appreciationRate = 0.03,
-}) => {
+}: FiveYearProjectionProps) => {
   const { t, isRTL } = useLanguage();
 
   const projection = calculate5YearProjection(

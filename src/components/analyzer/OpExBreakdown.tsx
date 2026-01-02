@@ -1,4 +1,4 @@
-import React from 'react';
+import { useState } from 'react';
 import { ChevronDown, Building, Wallet, Wrench, Shield, FileText, Zap } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
@@ -13,15 +13,15 @@ interface OpExBreakdownProps {
   currency: string;
 }
 
-const OpExBreakdown: React.FC<OpExBreakdownProps> = ({
+const OpExBreakdown = ({
   opexBreakdown,
   totalOpex,
   monthlyRent,
   purchasePrice,
   currency,
-}) => {
+}: OpExBreakdownProps) => {
   const { t, isRTL } = useLanguage();
-  const [isOpen, setIsOpen] = React.useState(false);
+  const [isOpen, setIsOpen] = useState(false);
 
   // Use provided breakdown or calculate from industry standards
   const breakdown = opexBreakdown || calculateOpExBreakdown(monthlyRent, purchasePrice);

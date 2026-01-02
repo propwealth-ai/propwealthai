@@ -1,4 +1,3 @@
-import React from 'react';
 import { MapPin, Calendar, TrendingUp, TrendingDown, Home } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -13,12 +12,12 @@ interface MarketComparablesProps {
   currency: string;
 }
 
-const MarketComparables: React.FC<MarketComparablesProps> = ({
+const MarketComparables = ({
   comparables,
   suggestedOfferPrice,
   purchasePrice,
   currency,
-}) => {
+}: MarketComparablesProps) => {
   const { t, isRTL } = useLanguage();
 
   if (!comparables || comparables.length === 0) {

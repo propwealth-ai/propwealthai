@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { 
   Brain, 
   Building2, 
@@ -34,7 +34,7 @@ import OpExBreakdown from '@/components/analyzer/OpExBreakdown';
 import MarketComparables from '@/components/analyzer/MarketComparables';
 import FiveYearProjection from '@/components/analyzer/FiveYearProjection';
 
-const Analyzer: React.FC = () => {
+const Analyzer = () => {
   const { t, isRTL, language } = useLanguage();
   const { profile } = useAuth();
   const [url, setUrl] = useState('');
