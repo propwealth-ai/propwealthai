@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
 
 const DashboardLayout: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   const { isRTL } = useLanguage();
 
   if (loading) {
@@ -21,6 +21,11 @@ const DashboardLayout: React.FC = () => {
 
   if (!user) {
     return <Navigate to="/auth" replace />;
+  }
+
+  // Redirect to set-password if user must change password
+  if (profile?.must_change_password) {
+    return <Navigate to="/set-password" replace />;
   }
 
   return (

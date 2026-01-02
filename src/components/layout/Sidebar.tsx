@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRBAC, RolePermissions } from '@/hooks/useRBAC';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -21,20 +22,34 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
+interface NavItem {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  path: string;
+  requiredPermission?: keyof RolePermissions;
+}
+
 const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
   const { t, isRTL } = useLanguage();
   const { signOut, profile } = useAuth();
+  const { canView, role } = useRBAC();
   const location = useLocation();
 
-  const navItems = [
+  const navItems: NavItem[] = [
     { icon: LayoutDashboard, label: t('nav.dashboard'), path: '/dashboard' },
     { icon: Brain, label: t('nav.analyzer'), path: '/analyzer' },
-    { icon: Building2, label: t('nav.properties'), path: '/properties' },
-    { icon: BarChart3, label: t('nav.analytics') || 'Analytics', path: '/analytics' },
+    { icon: Building2, label: t('nav.properties'), path: '/properties', requiredPermission: 'physical' },
+    { icon: BarChart3, label: t('nav.analytics') || 'Analytics', path: '/analytics', requiredPermission: 'analytics' },
     { icon: GraduationCap, label: t('nav.academy'), path: '/academy' },
-    { icon: Users, label: t('nav.team'), path: '/team' },
-    { icon: Settings, label: t('nav.settings'), path: '/settings' },
+    { icon: Users, label: t('nav.team'), path: '/team', requiredPermission: 'team' },
+    { icon: Settings, label: t('nav.settings'), path: '/settings', requiredPermission: 'settings' },
   ];
+
+  // Filter nav items based on permissions
+  const visibleNavItems = navItems.filter(item => {
+    if (!item.requiredPermission) return true;
+    return canView(item.requiredPermission);
+  });
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -83,7 +98,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
 
       {/* Navigation */}
       <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-        {navItems.map((item) => (
+        {visibleNavItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
@@ -113,7 +128,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
                 {profile.full_name || 'User'}
               </p>
               <p className="text-xs text-muted-foreground truncate">
-                {profile.email}
+                {t(`role.${role}`)}
               </p>
             </div>
           </div>

@@ -52,25 +52,30 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Verify the inviter is the owner of the team
-    const { data: inviterProfile, error: inviterError } = await supabaseAdmin
-      .from("profiles")
-      .select("team_id, team_role")
-      .eq("id", invitedBy)
+    // Verify the inviter is the owner of the team (check user_roles table first, fallback to profiles)
+    const { data: inviterRole } = await supabaseAdmin
+      .from("user_roles")
+      .select("role, team_id")
+      .eq("user_id", invitedBy)
+      .eq("team_id", teamId)
       .single();
 
-    if (inviterError || !inviterProfile) {
-      return new Response(
-        JSON.stringify({ error: "Inviter not found" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    let isOwner = inviterRole?.role === "owner";
 
-    if (inviterProfile.team_id !== teamId || inviterProfile.team_role !== "owner") {
-      return new Response(
-        JSON.stringify({ error: "Only team owners can create members" }),
-        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    // Fallback to profiles table for backwards compatibility
+    if (!isOwner) {
+      const { data: inviterProfile } = await supabaseAdmin
+        .from("profiles")
+        .select("team_id, team_role")
+        .eq("id", invitedBy)
+        .single();
+
+      if (!inviterProfile || inviterProfile.team_id !== teamId || inviterProfile.team_role !== "owner") {
+        return new Response(
+          JSON.stringify({ error: "Only team owners can create members" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // Check if email already exists
@@ -102,49 +107,60 @@ serve(async (req: Request): Promise<Response> => {
       );
     }
 
-    // Update the profile with team info (the profile is created by trigger)
-    // Wait a bit for the trigger to complete
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Wait for the trigger to create the profile
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
-    // Update the newly created profile to join the investor's team
+    // Get the auto-created team ID to delete later
+    const { data: autoProfile } = await supabaseAdmin
+      .from("profiles")
+      .select("team_id")
+      .eq("id", newUser.user.id)
+      .single();
+
+    const autoCreatedTeamId = autoProfile?.team_id;
+
+    // Update the profile to join the investor's team with must_change_password flag
     const { error: updateError } = await supabaseAdmin
       .from("profiles")
       .update({
         team_id: teamId,
         team_role: role || "member",
         full_name: fullName,
+        must_change_password: true, // Force password change on first login
       })
       .eq("id", newUser.user.id);
 
     if (updateError) {
       console.error("Error updating profile:", updateError);
-      // Don't fail, the user is created, just log the error
     }
 
-    // Delete the auto-created team for this user (since they're joining an existing team)
-    const { data: userProfile } = await supabaseAdmin
-      .from("profiles")
-      .select("team_id")
-      .eq("id", newUser.user.id)
-      .single();
+    // Insert into user_roles table for proper RBAC
+    const { error: roleError } = await supabaseAdmin
+      .from("user_roles")
+      .insert({
+        user_id: newUser.user.id,
+        role: role || "member",
+        team_id: teamId,
+      });
 
-    // The trigger created a new team, but we want this user to join the investor's team
-    // So we need to delete the auto-created team
-    if (userProfile?.team_id && userProfile.team_id !== teamId) {
+    if (roleError) {
+      console.error("Error inserting user role:", roleError);
+    }
+
+    // Delete the auto-created team if different from the target team
+    if (autoCreatedTeamId && autoCreatedTeamId !== teamId) {
+      // First delete any roles associated with the auto-created team
+      await supabaseAdmin
+        .from("user_roles")
+        .delete()
+        .eq("team_id", autoCreatedTeamId);
+
+      // Then delete the team
       await supabaseAdmin
         .from("teams")
         .delete()
-        .eq("id", userProfile.team_id);
+        .eq("id", autoCreatedTeamId);
     }
-
-    // Update profile again to ensure correct team
-    await supabaseAdmin
-      .from("profiles")
-      .update({
-        team_id: teamId,
-        team_role: role || "member",
-      })
-      .eq("id", newUser.user.id);
 
     return new Response(
       JSON.stringify({
