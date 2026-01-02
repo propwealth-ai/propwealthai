@@ -11,7 +11,12 @@ import {
   Scale,
   Search as SearchIcon,
   Copy,
-  CheckCircle2
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Key,
+  User,
+  Lock
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,6 +36,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
@@ -51,6 +57,13 @@ interface Invitation {
   token: string;
   expires_at: string;
   accepted_at: string | null;
+}
+
+interface CreatedMemberCredentials {
+  email: string;
+  password: string;
+  fullName: string;
+  role: string;
 }
 
 const roleIcons: Record<string, React.ComponentType<any>> = {
@@ -75,6 +88,15 @@ const roleColors: Record<string, string> = {
   member: 'bg-muted text-muted-foreground',
 };
 
+const generateSecurePassword = (): string => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&';
+  let password = '';
+  for (let i = 0; i < 12; i++) {
+    password += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return password;
+};
+
 const Team: React.FC = () => {
   const { t, isRTL } = useLanguage();
   const { profile } = useAuth();
@@ -84,13 +106,21 @@ const Team: React.FC = () => {
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [credentialsDialogOpen, setCredentialsDialogOpen] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
   
   // Form state
-  const [inviteName, setInviteName] = useState('');
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<string>('member');
-  const [inviting, setInviting] = useState(false);
+  const [memberName, setMemberName] = useState('');
+  const [memberEmail, setMemberEmail] = useState('');
+  const [memberPassword, setMemberPassword] = useState('');
+  const [memberRole, setMemberRole] = useState<string>('member');
+  const [showPassword, setShowPassword] = useState(false);
+  const [creating, setCreating] = useState(false);
+  
+  // Created member credentials
+  const [createdCredentials, setCreatedCredentials] = useState<CreatedMemberCredentials | null>(null);
+  const [showCreatedPassword, setShowCreatedPassword] = useState(false);
 
   const roles = [
     { value: 'shark_agent', label: t('role.shark_agent') },
@@ -135,50 +165,97 @@ const Team: React.FC = () => {
     setLoading(false);
   };
 
-  const handleInvite = async () => {
-    if (!profile?.team_id || !inviteEmail) return;
-    setInviting(true);
+  const handleCreateMember = async () => {
+    if (!profile?.team_id || !memberEmail || !memberPassword) return;
+    setCreating(true);
 
-    const { data, error } = await supabase
-      .from('team_invitations')
-      .insert({
-        team_id: profile.team_id,
-        email: inviteEmail,
-        name: inviteName || null,
-        role: inviteRole as any,
-        invited_by: profile.id,
-      })
-      .select()
-      .single();
+    try {
+      const { data, error } = await supabase.functions.invoke('create-team-member', {
+        body: {
+          email: memberEmail,
+          password: memberPassword,
+          fullName: memberName,
+          role: memberRole,
+          teamId: profile.team_id,
+          invitedBy: profile.id,
+        },
+      });
 
-    if (error) {
-      toast({
-        title: t('common.error'),
-        description: error.message,
-        variant: 'destructive',
-      });
-    } else {
-      toast({
-        title: t('team.inviteSent'),
-        description: `Magic link generated for ${inviteEmail}`,
-      });
-      
-      // Log the magic link (in production, this would send an email)
-      console.log('📧 INVITATION MAGIC LINK:', {
-        email: inviteEmail,
-        name: inviteName,
-        role: inviteRole,
-        link: `${window.location.origin}/invite?token=${data.token}`,
+      if (error) {
+        throw error;
+      }
+
+      if (data.error) {
+        toast({
+          title: t('common.error'),
+          description: data.error,
+          variant: 'destructive',
+        });
+        return;
+      }
+
+      // Success - save credentials and show dialog
+      setCreatedCredentials({
+        email: memberEmail,
+        password: memberPassword,
+        fullName: memberName || memberEmail,
+        role: memberRole,
       });
 
       setDialogOpen(false);
-      setInviteName('');
-      setInviteEmail('');
-      setInviteRole('member');
+      setCredentialsDialogOpen(true);
+      
+      // Reset form
+      setMemberName('');
+      setMemberEmail('');
+      setMemberPassword('');
+      setMemberRole('member');
+      
+      // Refresh team data
       fetchTeamData();
-    }
 
-    setInviting(false);
+      toast({
+        title: t('team.memberCreated'),
+        description: t('team.memberCreatedDesc'),
+      });
+    } catch (error: any) {
+      console.error('Error creating member:', error);
+      toast({
+        title: t('common.error'),
+        description: error.message || 'Failed to create team member',
+        variant: 'destructive',
+      });
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const copyToClipboard = (text: string, field: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+    toast({
+      title: t('common.copied'),
+      description: `${field} ${t('common.copiedToClipboard')}`,
+    });
+  };
+
+  const copyAllCredentials = () => {
+    if (!createdCredentials) return;
+    const text = `PropWealth AI - Access Credentials
+
+Name: ${createdCredentials.fullName}
+Role: ${t(`role.${createdCredentials.role}`)}
+Email: ${createdCredentials.email}
+Password: ${createdCredentials.password}
+
+Login URL: ${window.location.origin}/auth`;
+    
+    navigator.clipboard.writeText(text);
+    toast({
+      title: t('common.copied'),
+      description: t('team.allCredentialsCopied'),
+    });
   };
 
   const copyInviteLink = (token: string) => {
@@ -197,57 +274,101 @@ const Team: React.FC = () => {
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
-      <div className={cn("flex items-center justify-between", isRTL && "flex-row-reverse")}>
+      <div className={cn("flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4", isRTL && "sm:flex-row-reverse")}>
         <div className={isRTL ? "text-right" : ""}>
           <div className={cn("flex items-center gap-3 mb-2", isRTL && "flex-row-reverse justify-end")}>
             <Users className="w-8 h-8 text-primary" />
-            <h1 className="text-3xl font-bold text-foreground">{t('team.title')}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{t('team.title')}</h1>
           </div>
-          <p className="text-muted-foreground">{t('team.subtitle')}</p>
+          <p className="text-muted-foreground text-sm sm:text-base">{t('team.subtitle')}</p>
         </div>
         
         {isOwner && (
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="btn-premium text-primary-foreground gap-2">
+              <Button className="btn-premium text-primary-foreground gap-2 w-full sm:w-auto">
                 <UserPlus className="w-4 h-4" />
                 {t('team.addMember')}
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-card border-border">
+            <DialogContent className="bg-card border-border max-w-md mx-4 sm:mx-auto">
               <DialogHeader>
-                <DialogTitle className="text-foreground">{t('team.addMember')}</DialogTitle>
+                <DialogTitle className="text-foreground flex items-center gap-2">
+                  <UserPlus className="w-5 h-5 text-primary" />
+                  {t('team.createMember')}
+                </DialogTitle>
+                <DialogDescription className="text-muted-foreground">
+                  {t('team.createMemberDesc')}
+                </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 mt-4">
                 <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">
+                  <label className="text-sm text-muted-foreground mb-2 block flex items-center gap-2">
+                    <User className="w-4 h-4" />
                     {t('team.name')}
                   </label>
                   <Input
-                    value={inviteName}
-                    onChange={(e) => setInviteName(e.target.value)}
+                    value={memberName}
+                    onChange={(e) => setMemberName(e.target.value)}
                     className="input-executive"
                     placeholder="John Smith"
                   />
                 </div>
                 <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">
+                  <label className="text-sm text-muted-foreground mb-2 block flex items-center gap-2">
+                    <Mail className="w-4 h-4" />
                     {t('team.email')} *
                   </label>
                   <Input
                     type="email"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
+                    value={memberEmail}
+                    onChange={(e) => setMemberEmail(e.target.value)}
                     className="input-executive"
-                    placeholder="john@example.com"
+                    placeholder="member@example.com"
                     required
                   />
+                </div>
+                <div>
+                  <label className="text-sm text-muted-foreground mb-2 block flex items-center gap-2">
+                    <Lock className="w-4 h-4" />
+                    {t('team.password')} *
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Input
+                        type={showPassword ? 'text' : 'password'}
+                        value={memberPassword}
+                        onChange={(e) => setMemberPassword(e.target.value)}
+                        className="input-executive pr-10"
+                        placeholder="••••••••"
+                        required
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setMemberPassword(generateSecurePassword())}
+                      className="shrink-0"
+                    >
+                      <Key className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t('team.passwordHint')}
+                  </p>
                 </div>
                 <div>
                   <label className="text-sm text-muted-foreground mb-2 block">
                     {t('team.role')}
                   </label>
-                  <Select value={inviteRole} onValueChange={setInviteRole}>
+                  <Select value={memberRole} onValueChange={setMemberRole}>
                     <SelectTrigger className="input-executive">
                       <SelectValue />
                     </SelectTrigger>
@@ -261,11 +382,11 @@ const Team: React.FC = () => {
                   </Select>
                 </div>
                 <Button
-                  onClick={handleInvite}
-                  disabled={!inviteEmail || inviting}
+                  onClick={handleCreateMember}
+                  disabled={!memberEmail || !memberPassword || creating}
                   className="w-full btn-premium text-primary-foreground"
                 >
-                  {inviting ? t('common.loading') : t('team.addMember')}
+                  {creating ? t('common.loading') : t('team.createAndGetCredentials')}
                 </Button>
               </div>
             </DialogContent>
@@ -273,9 +394,117 @@ const Team: React.FC = () => {
         )}
       </div>
 
+      {/* Credentials Dialog */}
+      <Dialog open={credentialsDialogOpen} onOpenChange={setCredentialsDialogOpen}>
+        <DialogContent className="bg-card border-border max-w-md mx-4 sm:mx-auto">
+          <DialogHeader>
+            <DialogTitle className="text-foreground flex items-center gap-2">
+              <CheckCircle2 className="w-5 h-5 text-primary" />
+              {t('team.memberCreatedTitle')}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              {t('team.saveCredentialsWarning')}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {createdCredentials && (
+            <div className="space-y-4 mt-4">
+              {/* Credentials Card */}
+              <div className="p-4 bg-secondary/50 rounded-lg border border-border space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">{t('team.name')}:</span>
+                  <span className="font-medium text-foreground">{createdCredentials.fullName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">{t('team.role')}:</span>
+                  <span className={cn("px-2 py-1 rounded text-xs", roleColors[createdCredentials.role])}>
+                    {t(`role.${createdCredentials.role}`)}
+                  </span>
+                </div>
+                <div className="border-t border-border pt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm text-muted-foreground">{t('team.email')}:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm text-foreground">{createdCredentials.email}</span>
+                      <button
+                        onClick={() => copyToClipboard(createdCredentials.email, 'Email')}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        {copiedField === 'Email' ? (
+                          <CheckCircle2 className="w-4 h-4 text-primary" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-muted-foreground">{t('team.password')}:</span>
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-sm text-foreground">
+                        {showCreatedPassword ? createdCredentials.password : '••••••••••••'}
+                      </span>
+                      <button
+                        onClick={() => setShowCreatedPassword(!showCreatedPassword)}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        {showCreatedPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                      <button
+                        onClick={() => copyToClipboard(createdCredentials.password, 'Password')}
+                        className="text-muted-foreground hover:text-foreground"
+                      >
+                        {copiedField === 'Password' ? (
+                          <CheckCircle2 className="w-4 h-4 text-primary" />
+                        ) : (
+                          <Copy className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Login URL */}
+              <div className="p-3 bg-primary/10 rounded-lg">
+                <p className="text-xs text-muted-foreground mb-1">{t('team.loginUrl')}:</p>
+                <div className="flex items-center justify-between">
+                  <code className="text-sm text-primary font-mono truncate mr-2">
+                    {window.location.origin}/auth
+                  </code>
+                  <button
+                    onClick={() => copyToClipboard(`${window.location.origin}/auth`, 'URL')}
+                    className="text-muted-foreground hover:text-foreground shrink-0"
+                  >
+                    {copiedField === 'URL' ? (
+                      <CheckCircle2 className="w-4 h-4 text-primary" />
+                    ) : (
+                      <Copy className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Copy All Button */}
+              <Button
+                onClick={copyAllCredentials}
+                className="w-full btn-premium text-primary-foreground gap-2"
+              >
+                <Copy className="w-4 h-4" />
+                {t('team.copyAllCredentials')}
+              </Button>
+
+              <p className="text-xs text-center text-muted-foreground">
+                {t('team.sendCredentialsNote')}
+              </p>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Team Members */}
-      <div className="glass-card p-6">
-        <h2 className={cn("text-xl font-semibold text-foreground mb-6", isRTL && "text-right")}>
+      <div className="glass-card p-4 sm:p-6">
+        <h2 className={cn("text-lg sm:text-xl font-semibold text-foreground mb-4 sm:mb-6", isRTL && "text-right")}>
           Team Members ({members.length})
         </h2>
         
@@ -306,7 +535,7 @@ const Team: React.FC = () => {
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
                   <div className={cn("flex items-center gap-4", isRTL && "flex-row-reverse")}>
-                    <div className="team-avatar flex items-center justify-center bg-secondary">
+                    <div className="team-avatar flex items-center justify-center bg-secondary shrink-0">
                       <span className="text-lg font-bold text-foreground">
                         {member.full_name?.charAt(0) || member.email.charAt(0).toUpperCase()}
                       </span>
@@ -336,8 +565,8 @@ const Team: React.FC = () => {
 
       {/* Pending Invitations */}
       {invitations.length > 0 && (
-        <div className="glass-card p-6">
-          <h2 className={cn("text-xl font-semibold text-foreground mb-6", isRTL && "text-right")}>
+        <div className="glass-card p-4 sm:p-6">
+          <h2 className={cn("text-lg sm:text-xl font-semibold text-foreground mb-4 sm:mb-6", isRTL && "text-right")}>
             Pending Invitations ({invitations.length})
           </h2>
           <div className="space-y-3">
@@ -345,12 +574,12 @@ const Team: React.FC = () => {
               <div
                 key={invitation.id}
                 className={cn(
-                  "flex items-center justify-between p-4 bg-secondary/50 rounded-lg",
-                  isRTL && "flex-row-reverse"
+                  "flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-4 bg-secondary/50 rounded-lg",
+                  isRTL && "sm:flex-row-reverse"
                 )}
               >
                 <div className={cn("flex items-center gap-4", isRTL && "flex-row-reverse")}>
-                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center shrink-0">
                     <Mail className="w-5 h-5 text-muted-foreground" />
                   </div>
                   <div className={isRTL ? "text-right" : ""}>
@@ -360,7 +589,7 @@ const Team: React.FC = () => {
                     <p className="text-sm text-muted-foreground">{invitation.email}</p>
                   </div>
                 </div>
-                <div className={cn("flex items-center gap-3", isRTL && "flex-row-reverse")}>
+                <div className={cn("flex items-center gap-3 w-full sm:w-auto justify-end", isRTL && "flex-row-reverse")}>
                   <span className={cn(
                     "px-2 py-1 rounded text-xs",
                     roleColors[invitation.role]
