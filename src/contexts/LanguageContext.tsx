@@ -206,6 +206,21 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     // Analyzer - Script
     'analyzer.script.negotiation': 'Suggested Negotiation Script',
     
+    // Analyzer - Portfolio Actions
+    'analyzer.saveToPortfolio': 'Add to Portfolio',
+    'analyzer.savedToPortfolio': 'Property added to portfolio!',
+    'analyzer.saving': 'Saving...',
+    'analyzer.alreadySaved': 'Already in Portfolio',
+    'analyzer.saveToPortfolioDesc': 'Save this analyzed property to your portfolio for tracking',
+    
+    // Properties - Actions
+    'properties.edit': 'Edit',
+    'properties.delete': 'Delete',
+    'properties.confirmDelete': 'Confirm Delete',
+    'properties.deleteWarning': 'Are you sure you want to delete this property? This action cannot be undone.',
+    'properties.deleteSuccess': 'Property deleted successfully',
+    'properties.updateSuccess': 'Property updated successfully',
+    
     // Common
     'common.save': 'Save',
     'common.cancel': 'Cancel',
@@ -379,6 +394,21 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     
     // Analyzer - Script
     'analyzer.script.negotiation': 'Script de Negociação Sugerido',
+    
+    // Analyzer - Portfolio Actions
+    'analyzer.saveToPortfolio': 'Adicionar ao Portfólio',
+    'analyzer.savedToPortfolio': 'Propriedade adicionada ao portfólio!',
+    'analyzer.saving': 'Salvando...',
+    'analyzer.alreadySaved': 'Já no Portfólio',
+    'analyzer.saveToPortfolioDesc': 'Salvar esta propriedade analisada no seu portfólio para acompanhamento',
+    
+    // Properties - Actions
+    'properties.edit': 'Editar',
+    'properties.delete': 'Excluir',
+    'properties.confirmDelete': 'Confirmar Exclusão',
+    'properties.deleteWarning': 'Tem certeza que deseja excluir esta propriedade? Esta ação não pode ser desfeita.',
+    'properties.deleteSuccess': 'Propriedade excluída com sucesso',
+    'properties.updateSuccess': 'Propriedade atualizada com sucesso',
     
     'common.save': 'Salvar',
     'common.cancel': 'Cancelar',

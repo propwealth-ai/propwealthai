@@ -255,32 +255,9 @@ ALL text content must be in ${targetLang}`;
       }
     }
 
-    // Persist to Supabase if user is authenticated
-    if (userId && teamId) {
-      try {
-        const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-        const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-        const supabaseAdmin = createClient(supabaseUrl, supabaseKey);
-
-        await supabaseAdmin.from('properties').insert({
-          team_id: teamId,
-          address: url || address,
-          purchase_price: deepScanResult.financials?.purchase_price,
-          monthly_rent: deepScanResult.financials?.estimated_monthly_rent,
-          current_value: deepScanResult.financials?.purchase_price,
-          monthly_expenses: deepScanResult.financials?.operating_expenses,
-          property_type: deepScanResult.metadata?.property_type,
-          status: 'analyzing',
-          financial_data: deepScanResult,
-          notes: `Deep Scan Analysis - Verdict: ${deepScanResult.ai_analysis?.verdict}`,
-        });
-        
-        console.log('Property persisted to database');
-      } catch (dbError) {
-        console.error('Failed to persist property:', dbError);
-        // Don't fail the request if persistence fails
-      }
-    }
+    // NOTE: Properties are no longer auto-saved. The user must explicitly
+    // choose to add an analyzed property to their portfolio via the UI.
+    // This gives investors full control over which properties are tracked.
 
     return new Response(JSON.stringify({
       success: true,

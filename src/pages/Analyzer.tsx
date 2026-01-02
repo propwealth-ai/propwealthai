@@ -19,7 +19,9 @@ import {
   Hammer,
   Lightbulb,
   BadgeCheck,
-  Link
+  Link,
+  PlusCircle,
+  Check
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -45,6 +47,8 @@ const Analyzer = () => {
   const [results, setResults] = useState<DeepScanResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'quick' | 'deep_scan'>('deep_scan');
+  const [savingToPortfolio, setSavingToPortfolio] = useState(false);
+  const [savedToPortfolio, setSavedToPortfolio] = useState(false);
 
   const handleAnalyze = async () => {
     if (mode === 'deep_scan' && !url) {
@@ -90,6 +94,38 @@ const Analyzer = () => {
       toast.error(message);
     } finally {
       setAnalyzing(false);
+    }
+  };
+
+  const handleSaveToPortfolio = async () => {
+    if (!profile?.team_id || !results) {
+      toast.error('Unable to save. Please try again.');
+      return;
+    }
+
+    setSavingToPortfolio(true);
+    try {
+      const { error } = await supabase.from('properties').insert({
+        team_id: profile.team_id,
+        address: url || address || 'Unknown Address',
+        purchase_price: results.financials?.purchase_price,
+        monthly_rent: results.financials?.estimated_monthly_rent,
+        current_value: results.financials?.purchase_price,
+        monthly_expenses: results.financials?.operating_expenses,
+        property_type: results.metadata?.property_type,
+        status: 'analyzing',
+        financial_data: results as any,
+        notes: `AI Analysis - Verdict: ${results.ai_analysis?.verdict}`,
+      });
+
+      if (error) throw error;
+
+      setSavedToPortfolio(true);
+      toast.success(t('analyzer.savedToPortfolio') || 'Property added to portfolio!');
+    } catch (err) {
+      toast.error('Failed to save property');
+    } finally {
+      setSavingToPortfolio(false);
     }
   };
 
@@ -409,6 +445,40 @@ const Analyzer = () => {
                     </p>
                   </div>
                 )}
+              </div>
+
+              {/* Save to Portfolio Button */}
+              <div className="pt-2">
+                <Button
+                  onClick={handleSaveToPortfolio}
+                  disabled={savingToPortfolio || savedToPortfolio}
+                  className={cn(
+                    "w-full h-12 gap-2 text-base font-semibold transition-all",
+                    savedToPortfolio 
+                      ? "bg-primary/20 text-primary border border-primary/30 cursor-default" 
+                      : "btn-premium text-primary-foreground"
+                  )}
+                >
+                  {savingToPortfolio ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
+                      {t('analyzer.saving') || 'Saving...'}
+                    </>
+                  ) : savedToPortfolio ? (
+                    <>
+                      <Check className="w-5 h-5" />
+                      {t('analyzer.alreadySaved') || 'Added to Portfolio'}
+                    </>
+                  ) : (
+                    <>
+                      <PlusCircle className="w-5 h-5" />
+                      {t('analyzer.saveToPortfolio') || 'Add to Portfolio'}
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-muted-foreground text-center mt-2">
+                  {t('analyzer.saveToPortfolioDesc') || 'Save to track this property in your portfolio'}
+                </p>
               </div>
             </div>
           ) : (
