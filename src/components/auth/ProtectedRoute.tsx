@@ -1,4 +1,4 @@
-import React from 'react';
+import { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRBAC, AppRole, RolePermissions } from '@/hooks/useRBAC';
@@ -7,20 +7,20 @@ import { Shield, Lock } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface ProtectedRouteProps {
-  children: React.ReactNode;
+  children: ReactNode;
   allowedRoles?: AppRole[];
   requiredPermission?: keyof RolePermissions;
-  fallback?: React.ReactNode;
+  fallback?: ReactNode;
   redirectTo?: string;
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+const ProtectedRoute = ({
   children,
   allowedRoles,
   requiredPermission,
   fallback,
   redirectTo,
-}) => {
+}: ProtectedRouteProps) => {
   const { user, loading: authLoading } = useAuth();
   const { role, canView, loading: rbacLoading, hasAnyRole } = useRBAC();
   const { t, isRTL } = useLanguage();
