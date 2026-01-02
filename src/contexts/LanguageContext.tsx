@@ -89,6 +89,8 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'team.allCredentialsCopied': 'All credentials copied to clipboard',
     'team.sendCredentialsNote': 'Send these credentials to your team member so they can access the platform.',
     'team.createAndGetCredentials': 'Create & Get Credentials',
+    'team.accessCredentials': 'Access Credentials',
+    'team.publishAppNote': 'Publish your app first for team members to access this URL.',
     
     // Common
     'common.copied': 'Copied!',
@@ -179,6 +181,8 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'team.allCredentialsCopied': 'Todas as credenciais copiadas',
     'team.sendCredentialsNote': 'Envie estas credenciais para o membro da sua equipe para que ele possa acessar a plataforma.',
     'team.createAndGetCredentials': 'Criar e Obter Credenciais',
+    'team.accessCredentials': 'Credenciais de Acesso',
+    'team.publishAppNote': 'Publique a sua app primeiro para os membros do team acederem a esta URL.',
     'common.copied': 'Copiado!',
     'common.copiedToClipboard': 'copiado para a área de transferência',
     'role.owner': 'Proprietário',

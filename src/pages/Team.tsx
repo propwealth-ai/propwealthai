@@ -240,16 +240,32 @@ const Team: React.FC = () => {
     });
   };
 
+  // Get the correct login URL - prefer published URL over preview
+  const getLoginUrl = () => {
+    const origin = window.location.origin;
+    // If it's a lovableproject.com preview, suggest publishing
+    if (origin.includes('lovableproject.com')) {
+      return `${origin}/auth`;
+    }
+    return `${origin}/auth`;
+  };
+
   const copyAllCredentials = () => {
     if (!createdCredentials) return;
-    const text = `PropWealth AI - Access Credentials
+    const loginUrl = getLoginUrl();
+    const text = `🏠 PropWealth AI - Team Access Credentials
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Name: ${createdCredentials.fullName}
-Role: ${t(`role.${createdCredentials.role}`)}
-Email: ${createdCredentials.email}
-Password: ${createdCredentials.password}
+👤 Name: ${createdCredentials.fullName}
+🏷️ Role: ${t(`role.${createdCredentials.role}`)}
 
-Login URL: ${window.location.origin}/auth`;
+📧 Email: ${createdCredentials.email}
+🔑 Password: ${createdCredentials.password}
+
+🔗 Login: ${loginUrl}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Welcome to the team! 🚀`;
     
     navigator.clipboard.writeText(text);
     toast({
@@ -394,41 +410,56 @@ Login URL: ${window.location.origin}/auth`;
         )}
       </div>
 
-      {/* Credentials Dialog */}
+      {/* Credentials Dialog - Improved Design */}
       <Dialog open={credentialsDialogOpen} onOpenChange={setCredentialsDialogOpen}>
-        <DialogContent className="bg-card border-border max-w-md mx-4 sm:mx-auto">
-          <DialogHeader>
-            <DialogTitle className="text-foreground flex items-center gap-2">
-              <CheckCircle2 className="w-5 h-5 text-primary" />
+        <DialogContent className="bg-gradient-to-br from-card to-card/95 border-primary/20 max-w-lg mx-4 sm:mx-auto shadow-2xl">
+          <DialogHeader className="text-center pb-2">
+            <div className="mx-auto w-16 h-16 bg-primary/20 rounded-full flex items-center justify-center mb-4">
+              <CheckCircle2 className="w-8 h-8 text-primary" />
+            </div>
+            <DialogTitle className="text-xl text-foreground">
               {t('team.memberCreatedTitle')}
             </DialogTitle>
-            <DialogDescription className="text-muted-foreground">
+            <DialogDescription className="text-muted-foreground text-sm">
               {t('team.saveCredentialsWarning')}
             </DialogDescription>
           </DialogHeader>
           
           {createdCredentials && (
-            <div className="space-y-4 mt-4">
-              {/* Credentials Card */}
-              <div className="p-4 bg-secondary/50 rounded-lg border border-border space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">{t('team.name')}:</span>
-                  <span className="font-medium text-foreground">{createdCredentials.fullName}</span>
+            <div className="space-y-5 mt-2">
+              {/* Member Info Header */}
+              <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-primary/10 to-transparent rounded-xl border border-primary/20">
+                <div className="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center">
+                  <User className="w-6 h-6 text-primary" />
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">{t('team.role')}:</span>
-                  <span className={cn("px-2 py-1 rounded text-xs", roleColors[createdCredentials.role])}>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-foreground">{createdCredentials.fullName}</h3>
+                  <span className={cn("inline-block px-2.5 py-0.5 rounded-full text-xs font-medium mt-1", roleColors[createdCredentials.role])}>
                     {t(`role.${createdCredentials.role}`)}
                   </span>
                 </div>
-                <div className="border-t border-border pt-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm text-muted-foreground">{t('team.email')}:</span>
+              </div>
+
+              {/* Credentials Card */}
+              <div className="bg-secondary/30 rounded-xl border border-border overflow-hidden">
+                <div className="px-4 py-3 bg-secondary/50 border-b border-border">
+                  <h4 className="text-sm font-medium text-foreground flex items-center gap-2">
+                    <Key className="w-4 h-4 text-primary" />
+                    {t('team.accessCredentials')}
+                  </h4>
+                </div>
+                <div className="p-4 space-y-3">
+                  {/* Email */}
+                  <div className="flex items-center justify-between py-2 px-3 bg-background/50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <Mail className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">{t('team.email')}</span>
+                    </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm text-foreground">{createdCredentials.email}</span>
+                      <code className="text-sm font-mono text-foreground">{createdCredentials.email}</code>
                       <button
                         onClick={() => copyToClipboard(createdCredentials.email, 'Email')}
-                        className="text-muted-foreground hover:text-foreground"
+                        className="p-1.5 rounded-md hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                       >
                         {copiedField === 'Email' ? (
                           <CheckCircle2 className="w-4 h-4 text-primary" />
@@ -438,21 +469,26 @@ Login URL: ${window.location.origin}/auth`;
                       </button>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">{t('team.password')}:</span>
+                  
+                  {/* Password */}
+                  <div className="flex items-center justify-between py-2 px-3 bg-background/50 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <Lock className="w-4 h-4 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">{t('team.password')}</span>
+                    </div>
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm text-foreground">
-                        {showCreatedPassword ? createdCredentials.password : '••••••••••••'}
-                      </span>
+                      <code className="text-sm font-mono text-foreground">
+                        {showCreatedPassword ? createdCredentials.password : '••••••••••'}
+                      </code>
                       <button
                         onClick={() => setShowCreatedPassword(!showCreatedPassword)}
-                        className="text-muted-foreground hover:text-foreground"
+                        className="p-1.5 rounded-md hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                       >
                         {showCreatedPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                       <button
                         onClick={() => copyToClipboard(createdCredentials.password, 'Password')}
-                        className="text-muted-foreground hover:text-foreground"
+                        className="p-1.5 rounded-md hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors"
                       >
                         {copiedField === 'Password' ? (
                           <CheckCircle2 className="w-4 h-4 text-primary" />
@@ -465,24 +501,32 @@ Login URL: ${window.location.origin}/auth`;
                 </div>
               </div>
 
-              {/* Login URL */}
-              <div className="p-3 bg-primary/10 rounded-lg">
-                <p className="text-xs text-muted-foreground mb-1">{t('team.loginUrl')}:</p>
-                <div className="flex items-center justify-between">
-                  <code className="text-sm text-primary font-mono truncate mr-2">
-                    {window.location.origin}/auth
+              {/* Login URL with Warning */}
+              <div className="p-4 bg-primary/10 rounded-xl border border-primary/20">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+                  <p className="text-xs font-medium text-primary">{t('team.loginUrl')}</p>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <code className="text-sm text-foreground font-mono bg-background/50 px-3 py-2 rounded-lg flex-1 truncate">
+                    {getLoginUrl()}
                   </code>
                   <button
-                    onClick={() => copyToClipboard(`${window.location.origin}/auth`, 'URL')}
-                    className="text-muted-foreground hover:text-foreground shrink-0"
+                    onClick={() => copyToClipboard(getLoginUrl(), 'URL')}
+                    className="p-2 rounded-lg bg-primary/20 hover:bg-primary/30 text-primary transition-colors shrink-0"
                   >
                     {copiedField === 'URL' ? (
-                      <CheckCircle2 className="w-4 h-4 text-primary" />
+                      <CheckCircle2 className="w-4 h-4" />
                     ) : (
                       <Copy className="w-4 h-4" />
                     )}
                   </button>
                 </div>
+                {window.location.origin.includes('lovableproject.com') && (
+                  <p className="text-xs text-amber-400 mt-2 flex items-center gap-1">
+                    ⚠️ {t('team.publishAppNote')}
+                  </p>
+                )}
               </div>
 
               {/* Copy All Button */}
