@@ -1,9 +1,10 @@
-import { MapPin, Calendar, TrendingUp, TrendingDown, Home } from 'lucide-react';
+import { MapPin, Calendar, TrendingUp, TrendingDown, Home, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { MarketComparable, formatCurrency } from '@/types/deepScan';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Badge } from '@/components/ui/badge';
 
 interface MarketComparablesProps {
   comparables?: MarketComparable[];
@@ -30,50 +31,52 @@ const MarketComparables = ({
   const isOverpriced = priceDiff > 0;
 
   return (
-    <Card className="glass-card">
-      <CardHeader className="pb-4">
-        <div className={cn("flex items-center justify-between", isRTL && "flex-row-reverse")}>
-          <CardTitle className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
-            <Home className="w-5 h-5 text-blue-400" />
-            {t('analyzer.comparables.title') || 'Market Comparables (Estimated)'}
+    <Card className="glass-card overflow-hidden">
+      <CardHeader className="pb-4 bg-gradient-to-r from-blue-500/5 to-cyan-500/5">
+        <div className={cn("flex items-center justify-between flex-wrap gap-3", isRTL && "flex-row-reverse")}>
+          <CardTitle className={cn("flex items-center gap-3", isRTL && "flex-row-reverse")}>
+            <div className="p-2 rounded-lg bg-blue-500/10">
+              <Home className="w-5 h-5 text-blue-400" />
+            </div>
+            <span>{t('analyzer.comparables.title')}</span>
           </CardTitle>
-          <div className={cn(
-            "flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium",
-            isOverpriced 
-              ? "bg-destructive/10 text-destructive" 
-              : "bg-primary/10 text-primary"
-          )}>
-            {isOverpriced ? (
-              <TrendingUp className="w-4 h-4" />
-            ) : (
-              <TrendingDown className="w-4 h-4" />
+          <Badge 
+            variant="outline"
+            className={cn(
+              "text-sm font-semibold px-3 py-1.5",
+              isOverpriced 
+                ? "bg-destructive/10 text-destructive border-destructive/30" 
+                : "bg-emerald-500/10 text-emerald-500 border-emerald-500/30"
             )}
-            {isOverpriced 
-              ? `${Math.abs(priceDiffPercent).toFixed(1)}% ${t('analyzer.comparables.aboveMarket') || 'above market'}`
-              : `${Math.abs(priceDiffPercent).toFixed(1)}% ${t('analyzer.comparables.belowMarket') || 'below market'}`
-            }
-          </div>
+          >
+            {isOverpriced ? (
+              <TrendingUp className="w-4 h-4 mr-1.5" />
+            ) : (
+              <TrendingDown className="w-4 h-4 mr-1.5" />
+            )}
+            {Math.abs(priceDiffPercent).toFixed(1)}% {isOverpriced ? t('analyzer.comparables.aboveMarket') : t('analyzer.comparables.belowMarket')}
+          </Badge>
         </div>
         <p className="text-sm text-muted-foreground mt-2">
-          {t('analyzer.comparables.description') || 'Recent sales in the area that justify the AI price assessment'}
+          {t('analyzer.comparables.description')}
         </p>
       </CardHeader>
-      <CardContent>
-        <div className="rounded-lg border border-border overflow-hidden">
+      <CardContent className="pt-6">
+        <div className="rounded-xl border border-border overflow-hidden">
           <Table>
             <TableHeader>
-              <TableRow className="bg-secondary/50">
-                <TableHead className={cn("font-medium", isRTL && "text-right")}>
-                  {t('analyzer.comparables.address') || 'Address/Location'}
+              <TableRow className="bg-secondary/50 hover:bg-secondary/50">
+                <TableHead className={cn("font-semibold text-foreground", isRTL && "text-right")}>
+                  {t('analyzer.comparables.address')}
                 </TableHead>
-                <TableHead className={cn("font-medium", isRTL && "text-right")}>
-                  {t('analyzer.comparables.salePrice') || 'Sale Price'}
+                <TableHead className={cn("font-semibold text-foreground", isRTL && "text-right")}>
+                  {t('analyzer.comparables.salePrice')}
                 </TableHead>
-                <TableHead className={cn("font-medium", isRTL && "text-right")}>
-                  {t('analyzer.comparables.date') || 'Date'}
+                <TableHead className={cn("font-semibold text-foreground", isRTL && "text-right")}>
+                  {t('analyzer.comparables.date')}
                 </TableHead>
-                <TableHead className={cn("font-medium", isRTL && "text-right")}>
-                  {t('analyzer.comparables.differential') || 'Notes'}
+                <TableHead className={cn("font-semibold text-foreground", isRTL && "text-right")}>
+                  {t('analyzer.comparables.differential')}
                 </TableHead>
               </TableRow>
             </TableHeader>
@@ -82,23 +85,25 @@ const MarketComparables = ({
                 <TableRow key={index} className="hover:bg-secondary/30 transition-colors">
                   <TableCell className={cn("font-medium", isRTL && "text-right")}>
                     <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse justify-end")}>
-                      <MapPin className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                      <div className="p-1.5 rounded-lg bg-secondary">
+                        <MapPin className="w-3.5 h-3.5 text-blue-400" />
+                      </div>
                       <span className="text-sm">{comp.address}</span>
                     </div>
                   </TableCell>
-                  <TableCell className={cn("font-semibold text-foreground", isRTL && "text-right")}>
+                  <TableCell className={cn("font-bold text-foreground tabular-nums", isRTL && "text-right")}>
                     {formatCurrency(comp.sale_price, currency)}
                   </TableCell>
                   <TableCell className={isRTL ? "text-right" : ""}>
-                    <div className={cn("flex items-center gap-1 text-muted-foreground", isRTL && "flex-row-reverse justify-end")}>
-                      <Calendar className="w-3 h-3" />
+                    <div className={cn("flex items-center gap-1.5 text-muted-foreground", isRTL && "flex-row-reverse justify-end")}>
+                      <Calendar className="w-3.5 h-3.5" />
                       <span className="text-sm">{comp.sale_date}</span>
                     </div>
                   </TableCell>
                   <TableCell className={isRTL ? "text-right" : ""}>
-                    <span className="text-xs text-muted-foreground bg-secondary px-2 py-1 rounded-full">
+                    <Badge variant="secondary" className="text-xs font-normal">
                       {comp.differential}
-                    </span>
+                    </Badge>
                   </TableCell>
                 </TableRow>
               ))}
@@ -107,33 +112,36 @@ const MarketComparables = ({
         </div>
 
         {/* Summary Footer */}
-        <div className="mt-4 p-4 bg-secondary/30 rounded-lg">
-          <div className="grid grid-cols-3 gap-4">
+        <div className="mt-6 p-5 bg-gradient-to-r from-secondary/50 to-secondary/30 rounded-xl border border-border/50">
+          <div className="grid grid-cols-3 gap-6">
             <div className={isRTL ? "text-right" : ""}>
-              <p className="text-xs text-muted-foreground mb-1">
-                {t('analyzer.comparables.avgComps') || 'Avg. Comp Price'}
+              <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider font-medium">
+                {t('analyzer.comparables.avgComps')}
               </p>
-              <p className="text-lg font-bold text-foreground">
+              <p className="text-xl font-bold text-foreground tabular-nums">
                 {formatCurrency(avgCompPrice, currency)}
               </p>
             </div>
             <div className={isRTL ? "text-right" : ""}>
-              <p className="text-xs text-muted-foreground mb-1">
-                {t('analyzer.comparables.askingPrice') || 'Asking Price'}
+              <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider font-medium">
+                {t('analyzer.comparables.askingPrice')}
               </p>
               <p className={cn(
-                "text-lg font-bold",
-                isOverpriced ? "text-destructive" : "text-primary"
+                "text-xl font-bold tabular-nums",
+                isOverpriced ? "text-destructive" : "text-emerald-500"
               )}>
                 {formatCurrency(purchasePrice, currency)}
               </p>
             </div>
             {suggestedOfferPrice && (
-              <div className={isRTL ? "text-right" : ""}>
-                <p className="text-xs text-muted-foreground mb-1">
-                  {t('analyzer.comparables.suggestedOffer') || 'Suggested Offer'}
+              <div className={cn("relative", isRTL ? "text-right" : "")}>
+                <div className="absolute -top-2 -right-2">
+                  <Sparkles className="w-4 h-4 text-emerald-400 animate-pulse" />
+                </div>
+                <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider font-medium">
+                  {t('analyzer.comparables.suggestedOffer')}
                 </p>
-                <p className="text-lg font-bold text-primary">
+                <p className="text-2xl font-black text-emerald-400 tabular-nums drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]">
                   {formatCurrency(suggestedOfferPrice, currency)}
                 </p>
               </div>
@@ -141,8 +149,8 @@ const MarketComparables = ({
           </div>
         </div>
 
-        <p className="text-xs text-muted-foreground italic mt-3">
-          {t('analyzer.comparables.disclaimer') || 'Comparables are AI-estimated based on market data patterns. Verify with local MLS data.'}
+        <p className="text-xs text-muted-foreground italic mt-4">
+          {t('analyzer.comparables.disclaimer')}
         </p>
       </CardContent>
     </Card>
