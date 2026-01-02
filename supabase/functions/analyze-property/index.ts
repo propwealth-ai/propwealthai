@@ -94,6 +94,7 @@ ALL text output in the JSON response MUST be in ${targetLang}. This includes:
 - All "negotiation_script" text
 - All items in "red_flags" array
 - All items in "strengths" array
+- All "market_comparables" address and differential fields
 Exception: Numeric values and enum values (BUY/NEGOTIATE/AVOID) remain in English.
 
 You must return a valid JSON object matching this exact schema:
@@ -109,14 +110,22 @@ You must return a valid JSON object matching this exact schema:
   "financials": {
     "purchase_price": number,
     "estimated_monthly_rent": number,
-    "operating_expenses": number (estimate 30-45% of rent based on property type),
+    "operating_expenses": number (sum of opex_breakdown items),
+    "opex_breakdown": {
+      "property_management": number (10% of monthly rent),
+      "vacancy": number (6% of monthly rent),
+      "maintenance": number (5% of monthly rent),
+      "insurance": number (0.5% of property value / 12),
+      "property_taxes": number (1.5% of property value / 12)
+    },
     "net_operating_income_annual": number (annual rent - annual expenses),
     "cap_rate": number (NOI / Purchase Price * 100),
     "cash_on_cash_return": number,
     "rehab_estimate": number (infer from description: "original kitchen" = moderate rehab, "newly renovated" = minimal),
     "one_percent_rule": number (monthly rent / purchase price * 100),
     "gross_rent_multiplier": number (price / annual rent),
-    "debt_service_coverage": number (estimate based on typical financing)
+    "debt_service_coverage": number (estimate based on typical financing),
+    "suggested_offer_price": number (your recommended offer price based on analysis)
   },
   "ai_analysis": {
     "verdict": "BUY" | "NEGOTIATE" | "AVOID",
@@ -136,8 +145,25 @@ You must return a valid JSON object matching this exact schema:
       "value_add": number,
       "priority": "high" | "medium" | "low"
     }
+  ],
+  "market_comparables": [
+    {
+      "address": "string (nearby street name or approximate location in ${targetLang})",
+      "sale_price": number,
+      "sale_date": "string (e.g., 'Nov 2024', 'Last 3 months')",
+      "differential": "string (what makes it different, e.g., 'More renovated', 'Larger lot' in ${targetLang})",
+      "beds": number (optional),
+      "baths": number (optional),
+      "sqft": number (optional)
+    }
   ]
 }
+
+IMPORTANT NEW REQUIREMENTS:
+1. Generate exactly 3 realistic market_comparables based on the property's location and type
+2. The comparables should justify your suggested_offer_price
+3. Calculate opex_breakdown using industry standards (10% mgmt, 6% vacancy, 5% maintenance, etc.)
+4. The operating_expenses should be the sum of all opex_breakdown items
 
 SEMANTIC INFERENCE RULES:
 1. If description mentions "original", "vintage", "needs TLC", "investor special" → High rehab costs

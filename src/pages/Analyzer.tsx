@@ -30,6 +30,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { DeepScanResult, jurisdictionInfo, formatCurrency } from '@/types/deepScan';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import OpExBreakdown from '@/components/analyzer/OpExBreakdown';
+import MarketComparables from '@/components/analyzer/MarketComparables';
+import FiveYearProjection from '@/components/analyzer/FiveYearProjection';
 
 const Analyzer: React.FC = () => {
   const { t, isRTL, language } = useLanguage();
@@ -373,6 +376,15 @@ const Analyzer: React.FC = () => {
                 ))}
               </div>
 
+              {/* OpEx Breakdown (Expandable) */}
+              <OpExBreakdown
+                opexBreakdown={results.financials?.opex_breakdown}
+                totalOpex={results.financials?.operating_expenses || 0}
+                monthlyRent={results.financials?.estimated_monthly_rent || 0}
+                purchasePrice={results.financials?.purchase_price || 0}
+                currency={currency}
+              />
+
               {/* Price Info */}
               <div className="p-4 bg-secondary/50 rounded-lg">
                 <div className="grid grid-cols-2 gap-4">
@@ -389,6 +401,14 @@ const Analyzer: React.FC = () => {
                     </p>
                   </div>
                 </div>
+                {results.financials?.suggested_offer_price && (
+                  <div className="mt-4 pt-4 border-t border-border">
+                    <p className="text-sm text-muted-foreground">{t('analyzer.suggestedOffer') || 'AI Suggested Offer'}</p>
+                    <p className="text-xl font-bold text-primary">
+                      {formatCurrency(results.financials.suggested_offer_price, currency)}
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           ) : (
@@ -409,115 +429,132 @@ const Analyzer: React.FC = () => {
 
       {/* Detailed Analysis Sections */}
       {results && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-fade-in">
-          {/* AI Reasoning */}
-          <div className="glass-card p-6">
-            <h3 className={cn("font-semibold text-foreground mb-4 flex items-center gap-2", isRTL && "flex-row-reverse")}>
-              <Sparkles className="w-5 h-5 text-primary" />
-              {t('analyzer.aiReasoning') || 'AI Analysis'}
-            </h3>
-            <p className="text-muted-foreground leading-relaxed">
-              {results.ai_analysis?.reasoning}
-            </p>
-          </div>
+        <div className="space-y-8 animate-fade-in">
+          {/* Market Comparables Section */}
+          <MarketComparables
+            comparables={results.market_comparables}
+            suggestedOfferPrice={results.financials?.suggested_offer_price}
+            purchasePrice={results.financials?.purchase_price || 0}
+            currency={currency}
+          />
 
-          {/* Tax Strategy */}
-          <div className="glass-card p-6">
-            <h3 className={cn("font-semibold text-foreground mb-4 flex items-center gap-2", isRTL && "flex-row-reverse")}>
-              <Globe className="w-5 h-5 text-blue-400" />
-              {t('analyzer.taxStrategy') || 'Tax Strategy'}
-            </h3>
-            <p className="text-muted-foreground leading-relaxed">
-              {results.ai_analysis?.tax_strategy}
-            </p>
-          </div>
-
-          {/* Strengths & Red Flags */}
-          <div className="glass-card p-6">
-            <h3 className={cn("font-semibold text-foreground mb-4 flex items-center gap-2", isRTL && "flex-row-reverse")}>
-              <Shield className="w-5 h-5 text-primary" />
-              {t('analyzer.strengthsAndRisks') || 'Strengths & Risks'}
-            </h3>
-            <div className="space-y-4">
-              <div>
-                <p className="text-sm text-primary font-medium mb-2">
-                  ✅ {t('analyzer.strengths') || 'Strengths'}
-                </p>
-                <ul className="space-y-1">
-                  {results.ai_analysis?.strengths?.map((s, i) => (
-                    <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                      <CheckCircle className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
-                      {s}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <p className="text-sm text-destructive font-medium mb-2">
-                  ⚠️ {t('analyzer.redFlags') || 'Red Flags'}
-                </p>
-                <ul className="space-y-1">
-                  {results.ai_analysis?.red_flags?.map((r, i) => (
-                    <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
-                      <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
-                      {r}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-
-          {/* Forced Appreciation */}
-          <div className="glass-card p-6">
-            <h3 className={cn("font-semibold text-foreground mb-4 flex items-center gap-2", isRTL && "flex-row-reverse")}>
-              <Lightbulb className="w-5 h-5 text-yellow-400" />
-              {t('analyzer.forcedAppreciation') || 'Value-Add Opportunities'}
-            </h3>
-            <p className="text-muted-foreground leading-relaxed mb-4">
-              {results.ai_analysis?.forced_appreciation}
-            </p>
-            
-            {results.rehab_suggestions && results.rehab_suggestions.length > 0 && (
-              <div className="space-y-2 mt-4">
-                <p className="text-sm font-medium text-foreground">
-                  {t('analyzer.rehabSuggestions') || 'Rehab Suggestions'}
-                </p>
-                {results.rehab_suggestions.map((rehab, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <Hammer className="w-4 h-4 text-muted-foreground" />
-                      <span className="text-sm text-foreground">{rehab.item}</span>
-                      <span className={cn(
-                        "text-xs px-2 py-0.5 rounded",
-                        rehab.priority === 'high' ? 'bg-destructive/20 text-destructive' :
-                        rehab.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
-                        'bg-secondary text-muted-foreground'
-                      )}>
-                        {rehab.priority}
-                      </span>
-                    </div>
-                    <span className="text-sm font-medium text-foreground">
-                      {formatCurrency(rehab.estimated_cost, currency)}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Negotiation Script */}
-          <div className="glass-card p-6 lg:col-span-2">
-            <h3 className={cn("font-semibold text-foreground mb-4 flex items-center gap-2", isRTL && "flex-row-reverse")}>
-              <FileText className="w-5 h-5 text-blue-400" />
-              {t('analyzer.negotiationScript') || 'Negotiation Script'}
-            </h3>
-            <div className="p-4 bg-secondary/50 rounded-lg border-l-4 border-primary">
-              <p className="text-muted-foreground leading-relaxed italic">
-                "{results.ai_analysis?.negotiation_script}"
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* AI Reasoning */}
+            <div className="glass-card p-6">
+              <h3 className={cn("font-semibold text-foreground mb-4 flex items-center gap-2", isRTL && "flex-row-reverse")}>
+                <Sparkles className="w-5 h-5 text-primary" />
+                {t('analyzer.aiReasoning') || 'AI Analysis'}
+              </h3>
+              <p className="text-muted-foreground leading-relaxed">
+                {results.ai_analysis?.reasoning}
               </p>
             </div>
+
+            {/* Tax Strategy */}
+            <div className="glass-card p-6">
+              <h3 className={cn("font-semibold text-foreground mb-4 flex items-center gap-2", isRTL && "flex-row-reverse")}>
+                <Globe className="w-5 h-5 text-blue-400" />
+                {t('analyzer.taxStrategy') || 'Tax Strategy'}
+              </h3>
+              <p className="text-muted-foreground leading-relaxed">
+                {results.ai_analysis?.tax_strategy}
+              </p>
+            </div>
+
+            {/* Strengths & Red Flags */}
+            <div className="glass-card p-6">
+              <h3 className={cn("font-semibold text-foreground mb-4 flex items-center gap-2", isRTL && "flex-row-reverse")}>
+                <Shield className="w-5 h-5 text-primary" />
+                {t('analyzer.strengthsAndRisks') || 'Strengths & Risks'}
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <p className="text-sm text-primary font-medium mb-2">
+                    ✅ {t('analyzer.strengths') || 'Strengths'}
+                  </p>
+                  <ul className="space-y-1">
+                    {results.ai_analysis?.strengths?.map((s, i) => (
+                      <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                        <CheckCircle className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+                        {s}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="text-sm text-destructive font-medium mb-2">
+                    ⚠️ {t('analyzer.redFlags') || 'Red Flags'}
+                  </p>
+                  <ul className="space-y-1">
+                    {results.ai_analysis?.red_flags?.map((r, i) => (
+                      <li key={i} className="text-sm text-muted-foreground flex items-start gap-2">
+                        <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
+                        {r}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Forced Appreciation */}
+            <div className="glass-card p-6">
+              <h3 className={cn("font-semibold text-foreground mb-4 flex items-center gap-2", isRTL && "flex-row-reverse")}>
+                <Lightbulb className="w-5 h-5 text-yellow-400" />
+                {t('analyzer.forcedAppreciation') || 'Value-Add Opportunities'}
+              </h3>
+              <p className="text-muted-foreground leading-relaxed mb-4">
+                {results.ai_analysis?.forced_appreciation}
+              </p>
+              
+              {results.rehab_suggestions && results.rehab_suggestions.length > 0 && (
+                <div className="space-y-2 mt-4">
+                  <p className="text-sm font-medium text-foreground">
+                    {t('analyzer.rehabSuggestions') || 'Rehab Suggestions'}
+                  </p>
+                  {results.rehab_suggestions.map((rehab, i) => (
+                    <div key={i} className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg">
+                      <div className="flex items-center gap-2">
+                        <Hammer className="w-4 h-4 text-muted-foreground" />
+                        <span className="text-sm text-foreground">{rehab.item}</span>
+                        <span className={cn(
+                          "text-xs px-2 py-0.5 rounded",
+                          rehab.priority === 'high' ? 'bg-destructive/20 text-destructive' :
+                          rehab.priority === 'medium' ? 'bg-yellow-500/20 text-yellow-400' :
+                          'bg-secondary text-muted-foreground'
+                        )}>
+                          {rehab.priority}
+                        </span>
+                      </div>
+                      <span className="text-sm font-medium text-foreground">
+                        {formatCurrency(rehab.estimated_cost, currency)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Negotiation Script */}
+            <div className="glass-card p-6 lg:col-span-2">
+              <h3 className={cn("font-semibold text-foreground mb-4 flex items-center gap-2", isRTL && "flex-row-reverse")}>
+                <FileText className="w-5 h-5 text-blue-400" />
+                {t('analyzer.negotiationScript') || 'Negotiation Script'}
+              </h3>
+              <div className="p-4 bg-secondary/50 rounded-lg border-l-4 border-primary">
+                <p className="text-muted-foreground leading-relaxed italic">
+                  "{results.ai_analysis?.negotiation_script}"
+                </p>
+              </div>
+            </div>
           </div>
+
+          {/* 5-Year Projection Card */}
+          <FiveYearProjection
+            currentValue={results.financials?.purchase_price || 0}
+            purchasePrice={results.financials?.purchase_price || 0}
+            currency={currency}
+          />
         </div>
       )}
     </div>
