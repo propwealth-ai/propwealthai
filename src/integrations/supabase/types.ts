@@ -60,6 +60,7 @@ export type Database = {
           full_name: string | null
           id: string
           language_pref: Database["public"]["Enums"]["language_code"]
+          must_change_password: boolean
           team_id: string | null
           team_role: Database["public"]["Enums"]["team_role"]
           updated_at: string
@@ -71,6 +72,7 @@ export type Database = {
           full_name?: string | null
           id: string
           language_pref?: Database["public"]["Enums"]["language_code"]
+          must_change_password?: boolean
           team_id?: string | null
           team_role?: Database["public"]["Enums"]["team_role"]
           updated_at?: string
@@ -82,6 +84,7 @@ export type Database = {
           full_name?: string | null
           id?: string
           language_pref?: Database["public"]["Enums"]["language_code"]
+          must_change_password?: boolean
           team_id?: string | null
           team_role?: Database["public"]["Enums"]["team_role"]
           updated_at?: string
@@ -239,18 +242,78 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_roles_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
+      get_role_permissions: {
+        Args: { _role: Database["public"]["Enums"]["app_role"] }
+        Returns: Json
+      }
+      get_user_role_in_team: {
+        Args: { _team_id: string; _user_id: string }
+        Returns: Database["public"]["Enums"]["app_role"]
+      }
       get_user_team_id: { Args: { user_id: string }; Returns: string }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       is_team_owner: {
         Args: { check_team_id: string; user_id: string }
         Returns: boolean
       }
+      is_team_owner_v2: {
+        Args: { _team_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
+      app_role:
+        | "owner"
+        | "admin"
+        | "lender"
+        | "contractor"
+        | "shark_agent"
+        | "attorney"
+        | "inspector"
+        | "member"
       language_code: "en" | "pt" | "fr" | "zh" | "it" | "es" | "ar"
       property_status:
         | "new"
@@ -394,6 +457,16 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      app_role: [
+        "owner",
+        "admin",
+        "lender",
+        "contractor",
+        "shark_agent",
+        "attorney",
+        "inspector",
+        "member",
+      ],
       language_code: ["en", "pt", "fr", "zh", "it", "es", "ar"],
       property_status: [
         "new",

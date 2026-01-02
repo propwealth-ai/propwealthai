@@ -10,8 +10,10 @@ import {
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRBAC } from '@/hooks/useRBAC';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import ExportPDFButton from '@/components/analytics/ExportPDFButton';
 import RoadToMillionCard from '@/components/dashboard/RoadToMillionCard';
 import {
@@ -170,6 +172,23 @@ const Analytics: React.FC = () => {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="w-12 h-12 rounded-xl bg-gradient-primary animate-pulse-glow"></div>
+      </div>
+    );
+  }
+
+  // Empty state when no properties
+  if (properties.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 text-center">
+        <div className="w-20 h-20 rounded-2xl bg-secondary/50 flex items-center justify-center mb-6">
+          <BarChart3 className="w-10 h-10 text-muted-foreground/50" />
+        </div>
+        <h3 className="text-xl font-semibold text-foreground mb-2">
+          {t('analytics.noData') || 'No Data Available'}
+        </h3>
+        <p className="text-muted-foreground max-w-md">
+          {t('analytics.addPropertiesFirst') || 'Add properties to your portfolio to see analytics and insights.'}
+        </p>
       </div>
     );
   }

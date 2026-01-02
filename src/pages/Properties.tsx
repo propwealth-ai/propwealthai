@@ -262,44 +262,8 @@ const Properties: React.FC = () => {
     ? properties 
     : properties.filter(p => p.status === filter);
 
-  // Mock properties for demo
-  const mockProperties: Property[] = [
-    {
-      id: '1',
-      address: '123 Investment Ave',
-      city: 'Miami',
-      state: 'FL',
-      property_type: 'Multi-family',
-      purchase_price: 425000,
-      current_value: 485000,
-      monthly_rent: 3200,
-      status: 'acquired',
-    },
-    {
-      id: '2',
-      address: '456 Cashflow Street',
-      city: 'Austin',
-      state: 'TX',
-      property_type: 'Single-family',
-      purchase_price: 315000,
-      current_value: 340000,
-      monthly_rent: 2400,
-      status: 'analyzing',
-    },
-    {
-      id: '3',
-      address: '789 Equity Boulevard',
-      city: 'Denver',
-      state: 'CO',
-      property_type: 'Duplex',
-      purchase_price: 275000,
-      current_value: null,
-      monthly_rent: 2100,
-      status: 'new',
-    },
-  ];
-
-  const displayProperties = properties.length > 0 ? filteredProperties : mockProperties;
+  // No more mock properties - use real data only
+  const displayProperties = filteredProperties;
   const comparisonProperties = displayProperties.filter(p => selectedForComparison.includes(p.id));
 
   return (
@@ -401,6 +365,22 @@ const Properties: React.FC = () => {
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <div className="w-12 h-12 rounded-xl bg-gradient-primary animate-pulse-glow"></div>
+        </div>
+      ) : displayProperties.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="w-20 h-20 rounded-2xl bg-secondary/50 flex items-center justify-center mb-6">
+            <Building2 className="w-10 h-10 text-muted-foreground/50" />
+          </div>
+          <h3 className="text-xl font-semibold text-foreground mb-2">
+            {t('properties.noProperties')}
+          </h3>
+          <p className="text-muted-foreground max-w-md mb-6">
+            {t('properties.addFirst')}
+          </p>
+          <Button onClick={() => setIsAddDialogOpen(true)} className="btn-premium text-primary-foreground gap-2">
+            <Plus className="w-4 h-4" />
+            {t('properties.addProperty')}
+          </Button>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">

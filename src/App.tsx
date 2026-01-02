@@ -7,6 +7,7 @@ import { LanguageProvider } from "@/contexts/LanguageContext";
 import { AuthProvider } from "@/contexts/AuthContext";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import Auth from "@/pages/Auth";
+import SetPassword from "@/pages/SetPassword";
 import Dashboard from "@/pages/Dashboard";
 import Academy from "@/pages/Academy";
 import Team from "@/pages/Team";
@@ -29,6 +30,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" replace />} />
               <Route path="/auth" element={<Auth />} />
+              <Route path="/set-password" element={<SetPassword />} />
               <Route element={<DashboardLayout />}>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/academy" element={<Academy />} />

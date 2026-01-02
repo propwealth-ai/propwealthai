@@ -10,6 +10,7 @@ interface Profile {
   team_id: string | null;
   team_role: string;
   language_pref: string;
+  must_change_password: boolean;
 }
 
 interface AuthContextType {

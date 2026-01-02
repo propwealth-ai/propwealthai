@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Bell, TrendingUp } from 'lucide-react';
 import { useLanguage, LanguageCode } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import {
   Select,
   SelectContent,
@@ -28,10 +29,30 @@ const languages: { code: LanguageCode; name: string; flag: string }[] = [
 const Header: React.FC<HeaderProps> = ({ collapsed }) => {
   const { language, setLanguage, t, isRTL } = useLanguage();
   const { profile } = useAuth();
+  const [netWorth, setNetWorth] = useState(0);
+  const [netWorthChange, setNetWorthChange] = useState(0);
 
-  // Mock net worth data - would come from real calculation
-  const netWorth = 1250000;
-  const netWorthChange = 12.5;
+  useEffect(() => {
+    if (profile?.team_id) {
+      fetchNetWorth();
+    }
+  }, [profile?.team_id]);
+
+  const fetchNetWorth = async () => {
+    const { data: properties } = await supabase
+      .from('properties')
+      .select('current_value, purchase_price');
+
+    if (properties && properties.length > 0) {
+      const totalValue = properties.reduce((sum, p) => sum + (p.current_value || p.purchase_price || 0), 0);
+      const totalInvested = properties.reduce((sum, p) => sum + (p.purchase_price || 0), 0);
+      const equity = totalValue - totalInvested;
+      const change = totalInvested > 0 ? ((equity / totalInvested) * 100) : 0;
+      
+      setNetWorth(totalValue);
+      setNetWorthChange(change);
+    }
+  };
 
   return (
     <header 
@@ -57,10 +78,15 @@ const Header: React.FC<HeaderProps> = ({ collapsed }) => {
               <span className="text-xl font-bold text-money">
                 ${netWorth.toLocaleString()}
               </span>
-              <span className="text-xs text-primary flex items-center gap-1">
-                <TrendingUp className="w-3 h-3" />
-                +{netWorthChange}%
-              </span>
+              {netWorthChange !== 0 && (
+                <span className={cn(
+                  "text-xs flex items-center gap-1",
+                  netWorthChange >= 0 ? "text-primary" : "text-destructive"
+                )}>
+                  <TrendingUp className="w-3 h-3" />
+                  {netWorthChange >= 0 ? '+' : ''}{netWorthChange.toFixed(1)}%
+                </span>
+              )}
             </div>
           </div>
         </div>
