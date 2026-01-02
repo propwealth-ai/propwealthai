@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   TrendingUp, 
   DollarSign, 
@@ -12,6 +12,8 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import ExportPDFButton from '@/components/analytics/ExportPDFButton';
+import RoadToMillionCard from '@/components/dashboard/RoadToMillionCard';
 import {
   LineChart,
   Line,
@@ -50,6 +52,7 @@ const Analytics: React.FC = () => {
   const { profile } = useAuth();
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
+  const chartsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (profile?.team_id) {
@@ -178,13 +181,26 @@ const Analytics: React.FC = () => {
         <div className={isRTL ? "text-right" : ""}>
           <div className={cn("flex items-center gap-3 mb-2", isRTL && "flex-row-reverse justify-end")}>
             <BarChart3 className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">Portfolio Analytics</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{t('analytics.title') || 'Portfolio Analytics'}</h1>
           </div>
           <p className="text-sm sm:text-base text-muted-foreground">
-            Track your portfolio performance and growth
+            {t('analytics.subtitle') || 'Track your portfolio performance and growth'}
           </p>
         </div>
+        <ExportPDFButton 
+          targetRef={chartsRef} 
+          fileName="propwealth-analytics"
+          portfolioData={{
+            totalValue,
+            totalCashflow: totalMonthlyCashflow,
+            propertyCount: properties.length,
+            averageROI
+          }}
+        />
       </div>
+
+      {/* Road to $1M Card */}
+      <RoadToMillionCard currentNetWorth={totalValue} />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
@@ -217,8 +233,8 @@ const Analytics: React.FC = () => {
         ))}
       </div>
 
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+      {/* Charts Grid - Wrapped for PDF export */}
+      <div ref={chartsRef} className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Cashflow Projection */}
         <div className="glass-card p-4 sm:p-6">
           <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2 text-sm sm:text-base">
