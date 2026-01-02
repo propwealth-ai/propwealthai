@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { ChevronDown, Building, Wallet, Wrench, Shield, FileText, Zap } from 'lucide-react';
+import { ChevronDown, Building, Wallet, Wrench, Shield, FileText, Zap, Circle } from 'lucide-react';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { OpExBreakdown as OpExBreakdownType, formatCurrency, calculateOpExBreakdown } from '@/types/deepScan';
+import { Badge } from '@/components/ui/badge';
 
 interface OpExBreakdownProps {
   opexBreakdown?: OpExBreakdownType;
@@ -31,44 +32,49 @@ const OpExBreakdown = ({
 
   const expenseItems = [
     { 
-      key: 'property_management',
-      label: t('analyzer.opex.propertyManagement') || 'Property Management',
-      value: breakdown.property_management,
-      icon: Building,
-      percent: '10%',
-      description: t('analyzer.opex.propertyManagementDesc') || 'of gross rent'
-    },
-    { 
-      key: 'vacancy',
-      label: t('analyzer.opex.vacancy') || 'Vacancy Reserve',
-      value: breakdown.vacancy,
-      icon: Wallet,
-      percent: '6%',
-      description: t('analyzer.opex.vacancyDesc') || 'of gross rent'
-    },
-    { 
-      key: 'maintenance',
-      label: t('analyzer.opex.maintenance') || 'Maintenance & Repairs',
-      value: breakdown.maintenance,
-      icon: Wrench,
-      percent: '5%',
-      description: t('analyzer.opex.maintenanceDesc') || 'of gross rent'
-    },
-    { 
-      key: 'insurance',
-      label: t('analyzer.opex.insurance') || 'Insurance',
-      value: breakdown.insurance,
-      icon: Shield,
-      percent: '0.5%',
-      description: t('analyzer.opex.insuranceDesc') || 'of property value/year'
-    },
-    { 
       key: 'property_taxes',
-      label: t('analyzer.opex.propertyTaxes') || 'Property Taxes',
+      label: t('analyzer.opex.propertyTaxes'),
       value: breakdown.property_taxes,
       icon: FileText,
       percent: '1.5%',
-      description: t('analyzer.opex.propertyTaxesDesc') || 'of property value/year'
+      description: t('analyzer.opex.propertyTaxesDesc'),
+      color: 'text-orange-400'
+    },
+    { 
+      key: 'insurance',
+      label: t('analyzer.opex.insurance'),
+      value: breakdown.insurance,
+      icon: Shield,
+      percent: '0.5%',
+      description: t('analyzer.opex.insuranceDesc'),
+      color: 'text-blue-400'
+    },
+    { 
+      key: 'maintenance',
+      label: t('analyzer.opex.maintenance'),
+      value: breakdown.maintenance,
+      icon: Wrench,
+      percent: '5%',
+      description: t('analyzer.opex.maintenanceDesc'),
+      color: 'text-amber-400'
+    },
+    { 
+      key: 'property_management',
+      label: t('analyzer.opex.propertyManagement'),
+      value: breakdown.property_management,
+      icon: Building,
+      percent: '10%',
+      description: t('analyzer.opex.propertyManagementDesc'),
+      color: 'text-purple-400'
+    },
+    { 
+      key: 'vacancy',
+      label: t('analyzer.opex.vacancy'),
+      value: breakdown.vacancy,
+      icon: Wallet,
+      percent: '6%',
+      description: t('analyzer.opex.vacancyDesc'),
+      color: 'text-rose-400'
     },
   ];
 
@@ -76,22 +82,24 @@ const OpExBreakdown = ({
   if (breakdown.utilities) {
     expenseItems.push({
       key: 'utilities',
-      label: t('analyzer.opex.utilities') || 'Utilities',
+      label: t('analyzer.opex.utilities'),
       value: breakdown.utilities,
       icon: Zap,
       percent: '',
-      description: ''
+      description: '',
+      color: 'text-yellow-400'
     });
   }
 
   if (breakdown.hoa_fees) {
     expenseItems.push({
       key: 'hoa_fees',
-      label: t('analyzer.opex.hoaFees') || 'HOA Fees',
+      label: t('analyzer.opex.hoaFees'),
       value: breakdown.hoa_fees,
       icon: Building,
       percent: '',
-      description: ''
+      description: '',
+      color: 'text-cyan-400'
     });
   }
 
@@ -99,84 +107,88 @@ const OpExBreakdown = ({
     <Collapsible open={isOpen} onOpenChange={setIsOpen} className="w-full">
       <CollapsibleTrigger className="w-full">
         <div className={cn(
-          "flex items-center justify-between p-4 bg-secondary/50 rounded-lg hover:bg-secondary/70 transition-colors cursor-pointer",
+          "flex items-center justify-between p-5 bg-gradient-to-r from-destructive/5 to-destructive/10 rounded-xl border border-destructive/20 hover:border-destructive/40 transition-all cursor-pointer group",
           isRTL && "flex-row-reverse"
         )}>
-          <div className={cn("flex items-center gap-3", isRTL && "flex-row-reverse")}>
-            <div className="p-2 rounded-lg bg-destructive/10">
-              <Wallet className="w-4 h-4 text-destructive" />
+          <div className={cn("flex items-center gap-4", isRTL && "flex-row-reverse")}>
+            <div className="p-3 rounded-xl bg-destructive/20 group-hover:bg-destructive/30 transition-colors">
+              <Wallet className="w-6 h-6 text-destructive" />
             </div>
             <div className={cn("text-left", isRTL && "text-right")}>
-              <p className="text-sm text-muted-foreground">
-                {t('analyzer.opex.monthlyExpenses') || 'Monthly Operating Expenses'}
+              <p className="text-sm text-muted-foreground font-medium">
+                {t('analyzer.opex.monthlyExpenses')}
               </p>
-              <p className="text-lg font-bold text-foreground">
+              <p className="text-2xl font-bold text-destructive">
                 {formatCurrency(monthlyTotal, currency)}
               </p>
             </div>
           </div>
-          <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
-            <span className="text-xs text-muted-foreground px-2 py-1 bg-secondary rounded-full">
-              {t('analyzer.opex.clickToExpand') || 'Click to expand'}
-            </span>
-            <ChevronDown className={cn(
-              "w-5 h-5 text-muted-foreground transition-transform duration-200",
+          <div className={cn("flex items-center gap-3", isRTL && "flex-row-reverse")}>
+            <Badge variant="outline" className="text-xs border-destructive/30 text-muted-foreground">
+              {t('analyzer.opex.clickToExpand')}
+            </Badge>
+            <div className={cn(
+              "w-8 h-8 rounded-full bg-secondary flex items-center justify-center transition-transform duration-300",
               isOpen && "rotate-180"
-            )} />
+            )}>
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
+            </div>
           </div>
         </div>
       </CollapsibleTrigger>
       
       <CollapsibleContent>
-        <div className="mt-2 p-4 bg-secondary/30 rounded-lg space-y-3 animate-fade-in">
-          <div className="flex items-center justify-between mb-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wide">
-              {t('analyzer.opex.industryStandards') || 'Industry Standard Estimates'}
+        <div className="mt-3 p-5 bg-secondary/30 rounded-xl border border-border/50 space-y-4 animate-fade-in">
+          <div className={cn("flex items-center justify-between", isRTL && "flex-row-reverse")}>
+            <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
+              {t('analyzer.opex.industryStandards')}
             </p>
-            <span className="text-xs text-primary px-2 py-1 bg-primary/10 rounded-full">
-              {t('analyzer.opex.transparent') || 'Transparent Math'}
-            </span>
+            <Badge className="bg-primary/10 text-primary border-primary/20 hover:bg-primary/20">
+              {t('analyzer.opex.transparent')}
+            </Badge>
           </div>
           
-          {expenseItems.map((item) => (
-            <div 
-              key={item.key}
-              className={cn(
-                "flex items-center justify-between py-2 border-b border-border/50 last:border-0",
-                isRTL && "flex-row-reverse"
-              )}
-            >
-              <div className={cn("flex items-center gap-3", isRTL && "flex-row-reverse")}>
-                <item.icon className="w-4 h-4 text-muted-foreground" />
-                <div className={isRTL ? "text-right" : "text-left"}>
-                  <p className="text-sm text-foreground">{item.label}</p>
-                  {item.percent && (
-                    <p className="text-xs text-muted-foreground">
-                      {item.percent} {item.description}
-                    </p>
-                  )}
+          <div className="space-y-1">
+            {expenseItems.map((item) => (
+              <div 
+                key={item.key}
+                className={cn(
+                  "flex items-center justify-between py-3 px-3 rounded-lg hover:bg-secondary/50 transition-colors",
+                  isRTL && "flex-row-reverse"
+                )}
+              >
+                <div className={cn("flex items-center gap-3", isRTL && "flex-row-reverse")}>
+                  <Circle className={cn("w-2.5 h-2.5 fill-current", item.color)} />
+                  <div className={isRTL ? "text-right" : "text-left"}>
+                    <p className="text-sm font-medium text-foreground">{item.label}</p>
+                    {item.percent && (
+                      <p className="text-xs text-muted-foreground">
+                        <span className="font-semibold">{item.percent}</span> {item.description}
+                      </p>
+                    )}
+                  </div>
                 </div>
+                <p className="text-sm font-bold text-foreground tabular-nums">
+                  {formatCurrency(item.value, currency)}
+                </p>
               </div>
-              <p className="text-sm font-medium text-foreground">
-                {formatCurrency(item.value, currency)}
-              </p>
-            </div>
-          ))}
+            ))}
+          </div>
           
           <div className={cn(
-            "flex items-center justify-between pt-3 mt-3 border-t border-border",
+            "flex items-center justify-between pt-4 mt-4 border-t-2 border-destructive/30",
             isRTL && "flex-row-reverse"
           )}>
-            <p className="text-sm font-semibold text-foreground">
-              {t('analyzer.opex.total') || 'Total Monthly OpEx'}
+            <p className="text-base font-bold text-foreground">
+              {t('analyzer.opex.total')}
             </p>
-            <p className="text-lg font-bold text-destructive">
+            <p className="text-xl font-black text-destructive">
               {formatCurrency(monthlyTotal, currency)}
             </p>
           </div>
           
-          <p className="text-xs text-muted-foreground italic pt-2">
-            {t('analyzer.opex.disclaimer') || 'These are industry-standard estimates. Actual expenses may vary based on property condition and local market.'}
+          <p className="text-xs text-muted-foreground italic pt-2 leading-relaxed">
+            {t('analyzer.opex.disclaimer')}
           </p>
         </div>
       </CollapsibleContent>

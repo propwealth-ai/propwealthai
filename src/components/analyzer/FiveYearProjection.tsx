@@ -3,7 +3,8 @@ import { cn } from '@/lib/utils';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { formatCurrency, calculate5YearProjection } from '@/types/deepScan';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Area, AreaChart } from 'recharts';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line } from 'recharts';
+import { Badge } from '@/components/ui/badge';
 
 interface FiveYearProjectionProps {
   currentValue: number;
@@ -30,7 +31,7 @@ const FiveYearProjection = ({
   );
 
   const chartData = projection.projections.map(p => ({
-    year: `${t('analyzer.projection.year') || 'Year'} ${p.year}`,
+    year: `${t('analyzer.projection.year')} ${p.year}`,
     yearNum: p.year,
     propertyValue: p.propertyValue,
     loanBalance: p.loanBalance,
@@ -40,12 +41,18 @@ const FiveYearProjection = ({
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-card border border-border rounded-lg p-3 shadow-xl">
-          <p className="text-sm font-medium text-foreground mb-2">{label}</p>
+        <div className="bg-card/95 backdrop-blur-sm border border-border rounded-xl p-4 shadow-2xl">
+          <p className="text-sm font-bold text-foreground mb-3">{label}</p>
           {payload.map((entry: any, index: number) => (
-            <div key={index} className="flex items-center justify-between gap-4 text-sm">
-              <span className="text-muted-foreground">{entry.name}:</span>
-              <span className="font-medium" style={{ color: entry.color }}>
+            <div key={index} className="flex items-center justify-between gap-6 text-sm py-1">
+              <div className="flex items-center gap-2">
+                <div 
+                  className="w-3 h-3 rounded-full" 
+                  style={{ backgroundColor: entry.color }}
+                />
+                <span className="text-muted-foreground">{entry.name}</span>
+              </div>
+              <span className="font-bold tabular-nums" style={{ color: entry.color }}>
                 {formatCurrency(entry.value, currency)}
               </span>
             </div>
@@ -57,65 +64,96 @@ const FiveYearProjection = ({
   };
 
   return (
-    <Card className="glass-card">
-      <CardHeader className="pb-4">
-        <CardTitle className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
-          <TrendingUp className="w-5 h-5 text-primary" />
-          {t('analyzer.projection.title') || 'Wealth Projection (5 Years)'}
-        </CardTitle>
-        <p className="text-sm text-muted-foreground mt-1">
-          {t('analyzer.projection.subtitle') || `Conservative ${(appreciationRate * 100).toFixed(0)}% annual appreciation`}
+    <Card className="glass-card overflow-hidden">
+      <CardHeader className="pb-4 bg-gradient-to-r from-primary/5 to-emerald-500/5">
+        <div className={cn("flex items-center justify-between", isRTL && "flex-row-reverse")}>
+          <CardTitle className={cn("flex items-center gap-3", isRTL && "flex-row-reverse")}>
+            <div className="p-2 rounded-lg bg-primary/10">
+              <TrendingUp className="w-5 h-5 text-primary" />
+            </div>
+            <span>{t('analyzer.projection.title')}</span>
+          </CardTitle>
+          <Badge variant="outline" className="text-xs">
+            {t('analyzer.projection.legend')}
+          </Badge>
+        </div>
+        <p className="text-sm text-muted-foreground mt-2">
+          {t('analyzer.projection.subtitle')}
         </p>
       </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         {/* Key Metrics */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
-          <div className="p-4 bg-primary/10 rounded-xl border border-primary/20">
-            <div className={cn("flex items-center gap-2 mb-2", isRTL && "flex-row-reverse")}>
+        <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="p-5 bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl border border-primary/20">
+            <div className={cn("flex items-center gap-2 mb-3", isRTL && "flex-row-reverse")}>
               <TrendingUp className="w-4 h-4 text-primary" />
-              <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                {t('analyzer.projection.futureValue') || 'Future Value (5Y)'}
+              <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
+                {t('analyzer.projection.futureValue')}
               </span>
             </div>
-            <p className="text-2xl font-bold text-primary">
+            <p className="text-3xl font-black text-primary">
               {formatCurrency(projection.projections[5].propertyValue, currency)}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              +{formatCurrency(projection.totalAppreciation, currency)} {t('analyzer.projection.appreciation') || 'appreciation'}
+            <p className="text-sm text-muted-foreground mt-2">
+              <span className="text-primary font-semibold">+{formatCurrency(projection.totalAppreciation, currency)}</span> {t('analyzer.projection.appreciation')}
             </p>
           </div>
           
-          <div className="p-4 bg-emerald-500/10 rounded-xl border border-emerald-500/20">
-            <div className={cn("flex items-center gap-2 mb-2", isRTL && "flex-row-reverse")}>
+          <div className="p-5 bg-gradient-to-br from-emerald-500/10 to-emerald-500/5 rounded-2xl border border-emerald-500/20">
+            <div className={cn("flex items-center gap-2 mb-3", isRTL && "flex-row-reverse")}>
               <Wallet className="w-4 h-4 text-emerald-500" />
-              <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                {t('analyzer.projection.equityBuilt') || 'Equity Built (5Y)'}
+              <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
+                {t('analyzer.projection.equityBuilt')}
               </span>
             </div>
-            <p className="text-2xl font-bold text-emerald-500">
+            <p className="text-3xl font-black text-emerald-500">
               {formatCurrency(projection.finalEquity, currency)}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {t('analyzer.projection.from') || 'From'} {formatCurrency(projection.initialEquity, currency)} {t('analyzer.projection.downPayment') || 'down payment'}
+            <p className="text-sm text-muted-foreground mt-2">
+              {t('analyzer.projection.from')} <span className="font-semibold">{formatCurrency(projection.initialEquity, currency)}</span> {t('analyzer.projection.downPayment')}
             </p>
           </div>
         </div>
 
+        {/* Chart with Legend */}
+        <div className="mb-4">
+          <div className={cn("flex items-center justify-center gap-8 mb-4", isRTL && "flex-row-reverse")}>
+            <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
+              <div className="w-4 h-4 rounded-full bg-primary shadow-lg shadow-primary/30" />
+              <span className="text-sm font-medium text-foreground">
+                {t('analyzer.projection.propertyValue')}
+              </span>
+            </div>
+            <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
+              <div className="w-4 h-4 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/30" />
+              <span className="text-sm font-medium text-foreground">
+                {t('analyzer.projection.equity')}
+              </span>
+            </div>
+            <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
+              <div className="w-4 h-1 bg-destructive rounded-full opacity-60" />
+              <span className="text-sm font-medium text-muted-foreground">
+                {t('analyzer.projection.loanBalance')}
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Mini Chart */}
-        <div className="h-48 w-full">
+        <div className="h-52 w-full bg-secondary/20 rounded-xl p-2">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
+                  <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.4}/>
                   <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
                 </linearGradient>
                 <linearGradient id="colorEquity" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="hsl(142, 71%, 45%)" stopOpacity={0.3}/>
+                  <stop offset="5%" stopColor="hsl(142, 71%, 45%)" stopOpacity={0.4}/>
                   <stop offset="95%" stopColor="hsl(142, 71%, 45%)" stopOpacity={0}/>
                 </linearGradient>
               </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.5} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" opacity={0.3} />
               <XAxis 
                 dataKey="yearNum" 
                 axisLine={false}
@@ -128,7 +166,7 @@ const FiveYearProjection = ({
                 tickLine={false}
                 tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                 tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
-                width={45}
+                width={50}
               />
               <Tooltip content={<CustomTooltip />} />
               <Area
@@ -137,8 +175,8 @@ const FiveYearProjection = ({
                 stroke="hsl(var(--primary))"
                 fillOpacity={1}
                 fill="url(#colorValue)"
-                name={t('analyzer.projection.propertyValue') || 'Property Value'}
-                strokeWidth={2}
+                name={t('analyzer.projection.propertyValue')}
+                strokeWidth={3}
               />
               <Area
                 type="monotone"
@@ -146,80 +184,83 @@ const FiveYearProjection = ({
                 stroke="hsl(142, 71%, 45%)"
                 fillOpacity={1}
                 fill="url(#colorEquity)"
-                name={t('analyzer.projection.equity') || 'Equity'}
-                strokeWidth={2}
+                name={t('analyzer.projection.equity')}
+                strokeWidth={3}
               />
               <Line
                 type="monotone"
                 dataKey="loanBalance"
                 stroke="hsl(var(--destructive))"
                 strokeDasharray="5 5"
-                strokeWidth={1.5}
+                strokeWidth={2}
                 dot={false}
-                name={t('analyzer.projection.loanBalance') || 'Loan Balance'}
+                name={t('analyzer.projection.loanBalance')}
+                opacity={0.6}
               />
             </AreaChart>
           </ResponsiveContainer>
         </div>
 
-        {/* Legend */}
-        <div className={cn("flex items-center justify-center gap-6 mt-4", isRTL && "flex-row-reverse")}>
-          <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
-            <div className="w-3 h-3 rounded-full bg-primary" />
-            <span className="text-xs text-muted-foreground">
-              {t('analyzer.projection.propertyValue') || 'Property Value'}
-            </span>
-          </div>
-          <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
-            <div className="w-3 h-3 rounded-full bg-emerald-500" />
-            <span className="text-xs text-muted-foreground">
-              {t('analyzer.projection.equity') || 'Equity'}
-            </span>
-          </div>
-          <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
-            <div className="w-3 h-0.5 bg-destructive" style={{ borderStyle: 'dashed' }} />
-            <span className="text-xs text-muted-foreground">
-              {t('analyzer.projection.loanBalance') || 'Debt'}
-            </span>
-          </div>
-        </div>
-
-        {/* Year-by-Year Breakdown */}
-        <div className="mt-6 space-y-2">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-3">
-            {t('analyzer.projection.yearByYear') || 'Year-by-Year Breakdown'}
+        {/* Year-by-Year Timeline */}
+        <div className="mt-8 space-y-2">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-medium mb-4">
+            {t('analyzer.projection.yearByYear')}
           </p>
-          {projection.projections.slice(1).map((p) => (
-            <div 
-              key={p.year}
-              className={cn(
-                "flex items-center justify-between py-2 px-3 rounded-lg bg-secondary/30 hover:bg-secondary/50 transition-colors",
-                isRTL && "flex-row-reverse"
-              )}
-            >
-              <div className={cn("flex items-center gap-3", isRTL && "flex-row-reverse")}>
-                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Calendar className="w-4 h-4 text-primary" />
+          <div className="relative">
+            {/* Timeline line */}
+            <div className="absolute left-4 top-4 bottom-4 w-0.5 bg-gradient-to-b from-primary via-emerald-500 to-emerald-600 rounded-full" />
+            
+            {projection.projections.slice(1).map((p, index) => (
+              <div 
+                key={p.year}
+                className={cn(
+                  "relative flex items-center gap-4 py-3 px-4 rounded-xl hover:bg-secondary/50 transition-colors ml-2",
+                  isRTL && "flex-row-reverse"
+                )}
+              >
+                {/* Timeline dot */}
+                <div className={cn(
+                  "absolute left-0 w-4 h-4 rounded-full border-2 border-primary bg-background z-10",
+                  index === 4 && "border-emerald-500 bg-emerald-500"
+                )} />
+                
+                <div className={cn("flex items-center gap-3 flex-1 ml-6", isRTL && "flex-row-reverse mr-6 ml-0")}>
+                  <div className={cn(
+                    "w-10 h-10 rounded-xl flex items-center justify-center font-bold text-sm",
+                    index === 4 
+                      ? "bg-emerald-500/20 text-emerald-500" 
+                      : "bg-primary/10 text-primary"
+                  )}>
+                    {p.year}
+                  </div>
+                  <div className={cn("flex-1", isRTL && "text-right")}>
+                    <span className="text-sm text-muted-foreground">
+                      {formatCurrency(p.propertyValue, currency)}
+                    </span>
+                  </div>
                 </div>
-                <span className="text-sm font-medium text-foreground">
-                  {t('analyzer.projection.year') || 'Year'} {p.year}
-                </span>
+                
+                <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
+                  <ChevronRight className="w-4 h-4 text-emerald-500" />
+                  <span className={cn(
+                    "text-sm font-bold tabular-nums",
+                    index === 4 ? "text-emerald-500 text-base" : "text-primary"
+                  )}>
+                    {formatCurrency(p.equity, currency)}
+                  </span>
+                  {index === 4 && (
+                    <Badge className="bg-emerald-500/20 text-emerald-500 border-emerald-500/30 ml-2">
+                      {t('analyzer.projection.equity')}
+                    </Badge>
+                  )}
+                </div>
               </div>
-              <div className={cn("flex items-center gap-4", isRTL && "flex-row-reverse")}>
-                <span className="text-sm text-muted-foreground">
-                  {formatCurrency(p.propertyValue, currency)}
-                </span>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-semibold text-primary">
-                  {formatCurrency(p.equity, currency)} {t('analyzer.projection.equity') || 'equity'}
-                </span>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
-        <p className="text-xs text-muted-foreground italic mt-4">
-          {t('analyzer.projection.disclaimer') || 'Projections assume 20% down payment, 7% interest rate, 30-year term. Actual results may vary.'}
+        <p className="text-xs text-muted-foreground italic mt-6 p-3 bg-secondary/30 rounded-lg">
+          {t('analyzer.projection.disclaimer')}
         </p>
       </CardContent>
     </Card>
