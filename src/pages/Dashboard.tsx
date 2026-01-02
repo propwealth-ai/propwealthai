@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   TrendingUp, 
@@ -17,11 +17,49 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/integrations/supabase/client';
+import RoadToMillionCard from '@/components/dashboard/RoadToMillionCard';
 
 const Dashboard: React.FC = () => {
   const { t, isRTL } = useLanguage();
   const { profile } = useAuth();
   const navigate = useNavigate();
+  const [portfolioMetrics, setPortfolioMetrics] = useState({
+    netWorth: 0,
+    propertyCount: 0,
+    monthlyIncome: 0,
+    cashOnCash: 0,
+  });
+
+  useEffect(() => {
+    if (profile?.team_id) {
+      fetchPortfolioMetrics();
+    }
+  }, [profile?.team_id]);
+
+  const fetchPortfolioMetrics = async () => {
+    const { data: properties } = await supabase
+      .from('properties')
+      .select('*');
+
+    if (properties && properties.length > 0) {
+      const totalValue = properties.reduce((sum, p) => sum + (p.current_value || p.purchase_price || 0), 0);
+      const totalInvested = properties.reduce((sum, p) => sum + (p.purchase_price || 0), 0);
+      const equity = totalValue - totalInvested;
+      const monthlyRent = properties.reduce((sum, p) => sum + (p.monthly_rent || 0), 0);
+      const monthlyExpenses = properties.reduce((sum, p) => sum + (p.monthly_expenses || (p.monthly_rent || 0) * 0.35), 0);
+      const monthlyCashflow = monthlyRent - monthlyExpenses;
+      const downPayment = totalInvested * 0.25;
+      const cashOnCash = downPayment > 0 ? ((monthlyCashflow * 12) / downPayment) * 100 : 0;
+
+      setPortfolioMetrics({
+        netWorth: totalValue,
+        propertyCount: properties.length,
+        monthlyIncome: monthlyCashflow,
+        cashOnCash,
+      });
+    }
+  };
 
   const quickActions = [
     { 
@@ -57,30 +95,30 @@ const Dashboard: React.FC = () => {
   const stats = [
     {
       label: t('dashboard.netWorth'),
-      value: '$1,250,000',
+      value: `$${portfolioMetrics.netWorth.toLocaleString()}`,
       change: '+12.5%',
       isPositive: true,
       icon: TrendingUp,
     },
     {
       label: t('dashboard.totalProperties'),
-      value: '8',
-      change: '+2',
+      value: portfolioMetrics.propertyCount.toString(),
+      change: `${portfolioMetrics.propertyCount > 0 ? '+' : ''}${portfolioMetrics.propertyCount}`,
       isPositive: true,
       icon: Building2,
     },
     {
       label: t('dashboard.monthlyIncome'),
-      value: '$18,500',
+      value: `$${portfolioMetrics.monthlyIncome.toLocaleString()}`,
       change: '+8.3%',
-      isPositive: true,
+      isPositive: portfolioMetrics.monthlyIncome >= 0,
       icon: DollarSign,
     },
     {
       label: t('dashboard.cashOnCash'),
-      value: '14.2%',
+      value: `${portfolioMetrics.cashOnCash.toFixed(1)}%`,
       change: '+1.8%',
-      isPositive: true,
+      isPositive: portfolioMetrics.cashOnCash >= 0,
       icon: Percent,
     },
   ];
@@ -132,6 +170,9 @@ const Dashboard: React.FC = () => {
           {t('dashboard.addProperty') || 'Add Property'}
         </Button>
       </div>
+
+      {/* Road to $1M Card */}
+      <RoadToMillionCard currentNetWorth={portfolioMetrics.netWorth} />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
