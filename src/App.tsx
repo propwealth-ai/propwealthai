@@ -13,6 +13,7 @@ import Team from "@/pages/Team";
 import Analyzer from "@/pages/Analyzer";
 import Properties from "@/pages/Properties";
 import Settings from "@/pages/Settings";
+import Analytics from "@/pages/Analytics";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -34,6 +35,7 @@ const App = () => (
                 <Route path="/team" element={<Team />} />
                 <Route path="/analyzer" element={<Analyzer />} />
                 <Route path="/properties" element={<Properties />} />
+                <Route path="/analytics" element={<Analytics />} />
                 <Route path="/settings" element={<Settings />} />
               </Route>
               <Route path="*" element={<NotFound />} />

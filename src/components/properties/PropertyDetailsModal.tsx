@@ -5,10 +5,8 @@ import {
   DollarSign, 
   TrendingUp, 
   Percent,
-  Calendar,
   Edit,
   Trash2,
-  X,
   Calculator,
   Bot
 } from 'lucide-react';
@@ -39,9 +37,11 @@ import {
   SelectTrigger, 
   SelectValue 
 } from '@/components/ui/select';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import PropertyImageUpload from './PropertyImageUpload';
 
 interface Property {
   id: string;
@@ -54,6 +54,7 @@ interface Property {
   monthly_rent: number | null;
   monthly_expenses?: number | null;
   status: string;
+  image_url?: string | null;
 }
 
 interface PropertyDetailsModalProps {
@@ -110,15 +111,14 @@ const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
   const purchasePrice = property.purchase_price || 0;
   const currentValue = property.current_value || purchasePrice;
   const monthlyRent = property.monthly_rent || 0;
-  const monthlyExpenses = property.monthly_expenses || (monthlyRent * 0.35); // Assume 35% expenses if not set
+  const monthlyExpenses = property.monthly_expenses || (monthlyRent * 0.35);
   const annualRent = monthlyRent * 12;
   const annualExpenses = monthlyExpenses * 12;
   const noi = annualRent - annualExpenses;
   const capRate = purchasePrice > 0 ? (noi / purchasePrice) * 100 : 0;
-  const cashOnCash = purchasePrice > 0 ? ((monthlyRent - monthlyExpenses) * 12 / (purchasePrice * 0.25)) * 100 : 0; // Assume 25% down
+  const cashOnCash = purchasePrice > 0 ? ((monthlyRent - monthlyExpenses) * 12 / (purchasePrice * 0.25)) * 100 : 0;
   const onePercentRule = purchasePrice > 0 ? (monthlyRent / purchasePrice) * 100 : 0;
   const equity = currentValue - purchasePrice;
-  const equityPercent = purchasePrice > 0 ? (equity / purchasePrice) * 100 : 0;
   const grossYield = purchasePrice > 0 ? (annualRent / purchasePrice) * 100 : 0;
 
   const handleEdit = async () => {
@@ -204,21 +204,21 @@ const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
   return (
     <>
       <Dialog open={isOpen} onOpenChange={(open) => { if (!open) { onClose(); setIsEditing(false); } }}>
-        <DialogContent className="sm:max-w-[700px] bg-card border-border max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
+        <DialogContent className="max-w-[95vw] sm:max-w-[700px] bg-card border-border max-h-[90vh] overflow-hidden p-0">
+          <DialogHeader className="p-4 sm:p-6 pb-0">
             <div className={cn("flex items-center justify-between", isRTL && "flex-row-reverse")}>
-              <DialogTitle className="text-foreground flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-primary" />
+              <DialogTitle className="text-foreground flex items-center gap-2 text-base sm:text-lg">
+                <Building2 className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
                 {isEditing ? 'Edit Property' : 'Property Details'}
               </DialogTitle>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2">
                 {!isEditing && (
                   <>
                     <Button 
                       variant="ghost" 
                       size="icon"
                       onClick={() => setIsEditing(true)}
-                      className="text-muted-foreground hover:text-foreground"
+                      className="text-muted-foreground hover:text-foreground h-8 w-8 sm:h-9 sm:w-9"
                     >
                       <Edit className="w-4 h-4" />
                     </Button>
@@ -226,7 +226,7 @@ const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
                       variant="ghost" 
                       size="icon"
                       onClick={() => setIsDeleting(true)}
-                      className="text-destructive hover:text-destructive"
+                      className="text-destructive hover:text-destructive h-8 w-8 sm:h-9 sm:w-9"
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -236,303 +236,327 @@ const PropertyDetailsModal: React.FC<PropertyDetailsModalProps> = ({
             </div>
           </DialogHeader>
 
-          {isEditing ? (
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label className="text-foreground">Address *</Label>
-                <Input
-                  value={editData.address}
-                  onChange={(e) => setEditData({ ...editData, address: e.target.value })}
-                  className="bg-secondary border-border"
+          <ScrollArea className="max-h-[calc(90vh-80px)]">
+            {isEditing ? (
+              <div className="space-y-4 p-4 sm:p-6 pt-4">
+                {/* Image Upload */}
+                <PropertyImageUpload
+                  propertyId={property.id}
+                  currentImageUrl={property.image_url}
+                  onUploadComplete={() => onUpdate()}
                 />
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-foreground">City</Label>
-                  <Input
-                    value={editData.city}
-                    onChange={(e) => setEditData({ ...editData, city: e.target.value })}
-                    className="bg-secondary border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-foreground">State</Label>
-                  <Input
-                    value={editData.state}
-                    onChange={(e) => setEditData({ ...editData, state: e.target.value })}
-                    className="bg-secondary border-border"
-                  />
-                </div>
-              </div>
 
-              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label className="text-foreground">Property Type</Label>
-                  <Select 
-                    value={editData.property_type} 
-                    onValueChange={(value) => setEditData({ ...editData, property_type: value })}
-                  >
-                    <SelectTrigger className="bg-secondary border-border">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Single-family">Single-family</SelectItem>
-                      <SelectItem value="Multi-family">Multi-family</SelectItem>
-                      <SelectItem value="Duplex">Duplex</SelectItem>
-                      <SelectItem value="Triplex">Triplex</SelectItem>
-                      <SelectItem value="Apartment">Apartment</SelectItem>
-                      <SelectItem value="Commercial">Commercial</SelectItem>
-                      <SelectItem value="Land">Land</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-foreground">Status</Label>
-                  <Select 
-                    value={editData.status} 
-                    onValueChange={(value) => setEditData({ ...editData, status: value })}
-                  >
-                    <SelectTrigger className="bg-secondary border-border">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="new">New</SelectItem>
-                      <SelectItem value="analyzing">Analyzing</SelectItem>
-                      <SelectItem value="under_contract">Under Contract</SelectItem>
-                      <SelectItem value="acquired">Acquired</SelectItem>
-                      <SelectItem value="archived">Archived</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-foreground">Purchase Price ($)</Label>
+                  <Label className="text-foreground text-sm">Address *</Label>
                   <Input
-                    type="number"
-                    value={editData.purchase_price}
-                    onChange={(e) => setEditData({ ...editData, purchase_price: e.target.value })}
+                    value={editData.address}
+                    onChange={(e) => setEditData({ ...editData, address: e.target.value })}
                     className="bg-secondary border-border"
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-foreground">Current Value ($)</Label>
-                  <Input
-                    type="number"
-                    value={editData.current_value}
-                    onChange={(e) => setEditData({ ...editData, current_value: e.target.value })}
-                    className="bg-secondary border-border"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label className="text-foreground">Monthly Rent ($)</Label>
-                  <Input
-                    type="number"
-                    value={editData.monthly_rent}
-                    onChange={(e) => setEditData({ ...editData, monthly_rent: e.target.value })}
-                    className="bg-secondary border-border"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-foreground">Monthly Expenses ($)</Label>
-                  <Input
-                    type="number"
-                    value={editData.monthly_expenses}
-                    onChange={(e) => setEditData({ ...editData, monthly_expenses: e.target.value })}
-                    className="bg-secondary border-border"
-                  />
-                </div>
-              </div>
-              
-              <div className="flex justify-end gap-3 pt-4">
-                <Button variant="outline" onClick={() => setIsEditing(false)}>
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={handleEdit}
-                  disabled={isSubmitting || !editData.address}
-                  className="btn-premium text-primary-foreground"
-                >
-                  {isSubmitting ? 'Saving...' : 'Save Changes'}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-6 py-4">
-              {/* Property Header */}
-              <div className="flex items-start justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-foreground">{property.address}</h2>
-                  <div className="flex items-center gap-2 mt-1 text-muted-foreground">
-                    <MapPin className="w-4 h-4" />
-                    <span>{property.city}, {property.state}</span>
-                  </div>
-                  <p className="text-sm text-muted-foreground mt-1">{property.property_type}</p>
-                </div>
-                <span className={cn(
-                  "px-3 py-1 rounded-full text-sm font-medium",
-                  statusColors[property.status]
-                )}>
-                  {property.status.replace('_', ' ').charAt(0).toUpperCase() + property.status.slice(1).replace('_', ' ')}
-                </span>
-              </div>
-
-              {/* Financial Overview */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-secondary/50 rounded-lg p-4">
-                  <p className="text-xs text-muted-foreground mb-1">Purchase Price</p>
-                  <p className="text-lg font-semibold text-foreground">${purchasePrice.toLocaleString()}</p>
-                </div>
-                <div className="bg-secondary/50 rounded-lg p-4">
-                  <p className="text-xs text-muted-foreground mb-1">Current Value</p>
-                  <p className="text-lg font-semibold text-foreground">${currentValue.toLocaleString()}</p>
-                </div>
-                <div className="bg-secondary/50 rounded-lg p-4">
-                  <p className="text-xs text-muted-foreground mb-1">Monthly Rent</p>
-                  <p className="text-lg font-semibold text-primary">${monthlyRent.toLocaleString()}</p>
-                </div>
-                <div className="bg-secondary/50 rounded-lg p-4">
-                  <p className="text-xs text-muted-foreground mb-1">Monthly Cashflow</p>
-                  <p className={cn(
-                    "text-lg font-semibold",
-                    (monthlyRent - monthlyExpenses) > 0 ? "text-primary" : "text-destructive"
-                  )}>
-                    ${(monthlyRent - monthlyExpenses).toLocaleString()}
-                  </p>
-                </div>
-              </div>
-
-              {/* Financial Analysis */}
-              <div className="glass-card p-4">
-                <div className="flex items-center gap-2 mb-4">
-                  <Calculator className="w-5 h-5 text-primary" />
-                  <h3 className="font-semibold text-foreground">Financial Analysis</h3>
                 </div>
                 
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Percent className="w-4 h-4 text-primary" />
-                      <span className="text-sm text-muted-foreground">Cap Rate</span>
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-foreground text-sm">City</Label>
+                    <Input
+                      value={editData.city}
+                      onChange={(e) => setEditData({ ...editData, city: e.target.value })}
+                      className="bg-secondary border-border"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-foreground text-sm">State</Label>
+                    <Input
+                      value={editData.state}
+                      onChange={(e) => setEditData({ ...editData, state: e.target.value })}
+                      className="bg-secondary border-border"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-foreground text-sm">Property Type</Label>
+                    <Select 
+                      value={editData.property_type} 
+                      onValueChange={(value) => setEditData({ ...editData, property_type: value })}
+                    >
+                      <SelectTrigger className="bg-secondary border-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Single-family">Single-family</SelectItem>
+                        <SelectItem value="Multi-family">Multi-family</SelectItem>
+                        <SelectItem value="Duplex">Duplex</SelectItem>
+                        <SelectItem value="Triplex">Triplex</SelectItem>
+                        <SelectItem value="Apartment">Apartment</SelectItem>
+                        <SelectItem value="Commercial">Commercial</SelectItem>
+                        <SelectItem value="Land">Land</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-foreground text-sm">Status</Label>
+                    <Select 
+                      value={editData.status} 
+                      onValueChange={(value) => setEditData({ ...editData, status: value })}
+                    >
+                      <SelectTrigger className="bg-secondary border-border">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="new">New</SelectItem>
+                        <SelectItem value="analyzing">Analyzing</SelectItem>
+                        <SelectItem value="under_contract">Under Contract</SelectItem>
+                        <SelectItem value="acquired">Acquired</SelectItem>
+                        <SelectItem value="archived">Archived</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-foreground text-sm">Purchase Price ($)</Label>
+                    <Input
+                      type="number"
+                      value={editData.purchase_price}
+                      onChange={(e) => setEditData({ ...editData, purchase_price: e.target.value })}
+                      className="bg-secondary border-border"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-foreground text-sm">Current Value ($)</Label>
+                    <Input
+                      type="number"
+                      value={editData.current_value}
+                      onChange={(e) => setEditData({ ...editData, current_value: e.target.value })}
+                      className="bg-secondary border-border"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 sm:gap-4">
+                  <div className="space-y-2">
+                    <Label className="text-foreground text-sm">Monthly Rent ($)</Label>
+                    <Input
+                      type="number"
+                      value={editData.monthly_rent}
+                      onChange={(e) => setEditData({ ...editData, monthly_rent: e.target.value })}
+                      className="bg-secondary border-border"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-foreground text-sm">Monthly Expenses ($)</Label>
+                    <Input
+                      type="number"
+                      value={editData.monthly_expenses}
+                      onChange={(e) => setEditData({ ...editData, monthly_expenses: e.target.value })}
+                      className="bg-secondary border-border"
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex justify-end gap-3 pt-4">
+                  <Button variant="outline" onClick={() => setIsEditing(false)} className="text-sm">
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleEdit}
+                    disabled={isSubmitting || !editData.address}
+                    className="btn-premium text-primary-foreground text-sm"
+                  >
+                    {isSubmitting ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4 sm:space-y-6 p-4 sm:p-6 pt-4">
+                {/* Property Image */}
+                {property.image_url && (
+                  <img 
+                    src={property.image_url} 
+                    alt={property.address}
+                    className="w-full h-40 sm:h-48 object-cover rounded-lg"
+                  />
+                )}
+
+                {/* Property Header */}
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg sm:text-xl font-semibold text-foreground">{property.address}</h2>
+                    <div className="flex items-center gap-2 mt-1 text-muted-foreground">
+                      <MapPin className="w-4 h-4" />
+                      <span className="text-sm">{property.city}, {property.state}</span>
                     </div>
+                    <p className="text-sm text-muted-foreground mt-1">{property.property_type}</p>
+                  </div>
+                  <span className={cn(
+                    "px-3 py-1 rounded-full text-xs sm:text-sm font-medium self-start",
+                    statusColors[property.status]
+                  )}>
+                    {property.status.replace('_', ' ').charAt(0).toUpperCase() + property.status.slice(1).replace('_', ' ')}
+                  </span>
+                </div>
+
+                {/* Financial Overview */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+                  <div className="bg-secondary/50 rounded-lg p-3 sm:p-4">
+                    <p className="text-xs text-muted-foreground mb-1">Purchase Price</p>
+                    <p className="text-base sm:text-lg font-semibold text-foreground">${purchasePrice.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-secondary/50 rounded-lg p-3 sm:p-4">
+                    <p className="text-xs text-muted-foreground mb-1">Current Value</p>
+                    <p className="text-base sm:text-lg font-semibold text-foreground">${currentValue.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-secondary/50 rounded-lg p-3 sm:p-4">
+                    <p className="text-xs text-muted-foreground mb-1">Monthly Rent</p>
+                    <p className="text-base sm:text-lg font-semibold text-primary">${monthlyRent.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-secondary/50 rounded-lg p-3 sm:p-4">
+                    <p className="text-xs text-muted-foreground mb-1">Monthly Cashflow</p>
                     <p className={cn(
-                      "text-xl font-bold",
-                      capRate >= 8 ? "text-primary" : capRate >= 5 ? "text-yellow-400" : "text-destructive"
+                      "text-base sm:text-lg font-semibold",
+                      (monthlyRent - monthlyExpenses) > 0 ? "text-primary" : "text-destructive"
                     )}>
-                      {capRate.toFixed(2)}%
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {capRate >= 8 ? "Excellent" : capRate >= 5 ? "Good" : "Below Average"}
-                    </p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-primary" />
-                      <span className="text-sm text-muted-foreground">Cash-on-Cash</span>
-                    </div>
-                    <p className={cn(
-                      "text-xl font-bold",
-                      cashOnCash >= 12 ? "text-primary" : cashOnCash >= 8 ? "text-yellow-400" : "text-destructive"
-                    )}>
-                      {cashOnCash.toFixed(2)}%
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {cashOnCash >= 12 ? "Excellent" : cashOnCash >= 8 ? "Good" : "Below Average"}
-                    </p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="w-4 h-4 text-primary" />
-                      <span className="text-sm text-muted-foreground">1% Rule</span>
-                    </div>
-                    <p className={cn(
-                      "text-xl font-bold",
-                      onePercentRule >= 1 ? "text-primary" : onePercentRule >= 0.8 ? "text-yellow-400" : "text-destructive"
-                    )}>
-                      {onePercentRule.toFixed(2)}%
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {onePercentRule >= 1 ? "Passes" : onePercentRule >= 0.8 ? "Close" : "Fails"}
-                    </p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <DollarSign className="w-4 h-4 text-primary" />
-                      <span className="text-sm text-muted-foreground">Annual NOI</span>
-                    </div>
-                    <p className="text-xl font-bold text-foreground">
-                      ${noi.toLocaleString()}
-                    </p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Percent className="w-4 h-4 text-primary" />
-                      <span className="text-sm text-muted-foreground">Gross Yield</span>
-                    </div>
-                    <p className="text-xl font-bold text-foreground">
-                      {grossYield.toFixed(2)}%
-                    </p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="w-4 h-4 text-primary" />
-                      <span className="text-sm text-muted-foreground">Equity Gain</span>
-                    </div>
-                    <p className={cn(
-                      "text-xl font-bold",
-                      equity > 0 ? "text-primary" : "text-destructive"
-                    )}>
-                      {equity >= 0 ? '+' : ''}${equity.toLocaleString()} ({equityPercent.toFixed(1)}%)
+                      ${(monthlyRent - monthlyExpenses).toLocaleString()}
                     </p>
                   </div>
                 </div>
-              </div>
 
-              {/* Actions */}
-              <div className="flex justify-end gap-3 pt-4 border-t border-border">
-                <Button variant="outline" onClick={onClose}>
-                  Close
-                </Button>
-                <Button 
-                  onClick={handleAnalyze}
-                  className="btn-premium text-primary-foreground gap-2"
-                >
-                  <Bot className="w-4 h-4" />
-                  Run AI Analysis
-                </Button>
+                {/* Financial Analysis */}
+                <div className="glass-card p-3 sm:p-4">
+                  <div className="flex items-center gap-2 mb-4">
+                    <Calculator className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                    <h3 className="font-semibold text-foreground text-sm sm:text-base">Financial Analysis</h3>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Percent className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
+                        <span className="text-xs sm:text-sm text-muted-foreground">Cap Rate</span>
+                      </div>
+                      <p className={cn(
+                        "text-lg sm:text-xl font-bold",
+                        capRate >= 8 ? "text-primary" : capRate >= 5 ? "text-yellow-400" : "text-destructive"
+                      )}>
+                        {capRate.toFixed(2)}%
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {capRate >= 8 ? "Excellent" : capRate >= 5 ? "Good" : "Below Average"}
+                      </p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
+                        <span className="text-xs sm:text-sm text-muted-foreground">Cash-on-Cash</span>
+                      </div>
+                      <p className={cn(
+                        "text-lg sm:text-xl font-bold",
+                        cashOnCash >= 12 ? "text-primary" : cashOnCash >= 8 ? "text-yellow-400" : "text-destructive"
+                      )}>
+                        {cashOnCash.toFixed(2)}%
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {cashOnCash >= 12 ? "Excellent" : cashOnCash >= 8 ? "Good" : "Below Average"}
+                      </p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
+                        <span className="text-xs sm:text-sm text-muted-foreground">1% Rule</span>
+                      </div>
+                      <p className={cn(
+                        "text-lg sm:text-xl font-bold",
+                        onePercentRule >= 1 ? "text-primary" : onePercentRule >= 0.8 ? "text-yellow-400" : "text-destructive"
+                      )}>
+                        {onePercentRule.toFixed(2)}%
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {onePercentRule >= 1 ? "Meets Rule" : onePercentRule >= 0.8 ? "Close" : "Below"}
+                      </p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
+                        <span className="text-xs sm:text-sm text-muted-foreground">Annual NOI</span>
+                      </div>
+                      <p className="text-lg sm:text-xl font-bold text-foreground">
+                        ${noi.toLocaleString()}
+                      </p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Percent className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
+                        <span className="text-xs sm:text-sm text-muted-foreground">Gross Yield</span>
+                      </div>
+                      <p className="text-lg sm:text-xl font-bold text-foreground">
+                        {grossYield.toFixed(2)}%
+                      </p>
+                    </div>
+
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
+                        <span className="text-xs sm:text-sm text-muted-foreground">Equity Gain</span>
+                      </div>
+                      <p className={cn(
+                        "text-lg sm:text-xl font-bold",
+                        equity >= 0 ? "text-primary" : "text-destructive"
+                      )}>
+                        {equity >= 0 ? '+' : ''}${equity.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Actions */}
+                <div className="flex flex-col sm:flex-row gap-3 pt-4">
+                  <Button 
+                    onClick={handleAnalyze}
+                    className="btn-premium text-primary-foreground flex-1 gap-2 text-sm"
+                  >
+                    <Bot className="w-4 h-4" />
+                    AI Deep Analysis
+                  </Button>
+                  <Button 
+                    variant="outline"
+                    onClick={() => setIsEditing(true)}
+                    className="flex-1 gap-2 text-sm"
+                  >
+                    <Edit className="w-4 h-4" />
+                    Edit Property
+                  </Button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </ScrollArea>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Confirmation */}
       <AlertDialog open={isDeleting} onOpenChange={setIsDeleting}>
-        <AlertDialogContent className="bg-card border-border">
+        <AlertDialogContent className="max-w-[95vw] sm:max-w-md bg-card border-border">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-foreground">Delete Property?</AlertDialogTitle>
-            <AlertDialogDescription className="text-muted-foreground">
+            <AlertDialogDescription className="text-muted-foreground text-sm">
               This action cannot be undone. This will permanently delete the property
               "{property.address}" from your portfolio.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="bg-secondary">Cancel</AlertDialogCancel>
-            <AlertDialogAction 
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogCancel className="text-sm">Cancel</AlertDialogCancel>
+            <AlertDialogAction
               onClick={handleDelete}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isSubmitting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-sm"
             >
-              {isSubmitting ? 'Deleting...' : 'Delete'}
+              {isSubmitting ? 'Deleting...' : 'Delete Property'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

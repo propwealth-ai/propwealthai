@@ -10,7 +10,8 @@ import {
   Plus,
   Bot,
   GraduationCap,
-  Users
+  Users,
+  BarChart3
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -31,6 +32,13 @@ const Dashboard: React.FC = () => {
       color: 'text-blue-400'
     },
     { 
+      title: 'Portfolio Analytics', 
+      desc: 'View charts and trends', 
+      icon: BarChart3,
+      path: '/analytics',
+      color: 'text-primary'
+    },
+    { 
       title: t('dashboard.continueLearning') || 'Continue Learning', 
       desc: t('dashboard.continueLearningDesc') || 'PropWealth Academy', 
       icon: GraduationCap,
@@ -42,7 +50,7 @@ const Dashboard: React.FC = () => {
       desc: t('dashboard.inviteTeamDesc') || 'Grow your power team', 
       icon: Users,
       path: '/team',
-      color: 'text-primary'
+      color: 'text-yellow-400'
     },
   ];
 
@@ -105,20 +113,20 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-6 sm:space-y-8 animate-fade-in px-2 sm:px-0">
       {/* Welcome Section */}
-      <div className={cn("flex items-center justify-between", isRTL && "flex-row-reverse")}>
+      <div className={cn("flex flex-col sm:flex-row sm:items-center justify-between gap-4", isRTL && "sm:flex-row-reverse")}>
         <div className={isRTL ? "text-right" : ""}>
-          <h1 className="text-3xl font-bold text-foreground">
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">
             {t('dashboard.welcome')}, {profile?.full_name?.split(' ')[0] || 'Investor'}!
           </h1>
-          <p className="text-muted-foreground mt-1">
+          <p className="text-sm sm:text-base text-muted-foreground mt-1">
             Here's what's happening with your portfolio today.
           </p>
         </div>
         <Button 
           onClick={() => navigate('/properties')}
-          className="btn-premium text-primary-foreground gap-2"
+          className="btn-premium text-primary-foreground gap-2 w-full sm:w-auto"
         >
           <Plus className="w-4 h-4" />
           {t('dashboard.addProperty') || 'Add Property'}
@@ -126,69 +134,69 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         {stats.map((stat, index) => (
           <div 
             key={stat.label} 
-            className="stat-card animate-fade-in"
+            className="stat-card animate-fade-in p-3 sm:p-6"
             style={{ animationDelay: `${index * 100}ms` }}
           >
             <div className={cn("flex items-start justify-between", isRTL && "flex-row-reverse")}>
               <div className={isRTL ? "text-right" : ""}>
-                <p className="text-sm text-muted-foreground mb-1">{stat.label}</p>
-                <p className="text-3xl font-bold text-foreground">{stat.value}</p>
+                <p className="text-xs sm:text-sm text-muted-foreground mb-1">{stat.label}</p>
+                <p className="text-xl sm:text-3xl font-bold text-foreground">{stat.value}</p>
               </div>
-              <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                <stat.icon className="w-6 h-6 text-primary" />
+              <div className="w-8 h-8 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-primary/10 flex items-center justify-center">
+                <stat.icon className="w-4 h-4 sm:w-6 sm:h-6 text-primary" />
               </div>
             </div>
-            <div className={cn("flex items-center gap-2 mt-4", isRTL && "flex-row-reverse")}>
+            <div className={cn("flex items-center gap-1 sm:gap-2 mt-2 sm:mt-4", isRTL && "flex-row-reverse")}>
               {stat.isPositive ? (
-                <ArrowUpRight className="w-4 h-4 text-primary" />
+                <ArrowUpRight className="w-3 h-3 sm:w-4 sm:h-4 text-primary" />
               ) : (
-                <ArrowDownRight className="w-4 h-4 text-destructive" />
+                <ArrowDownRight className="w-3 h-3 sm:w-4 sm:h-4 text-destructive" />
               )}
-              <span className={stat.isPositive ? "text-primary text-sm" : "text-destructive text-sm"}>
+              <span className={cn("text-xs sm:text-sm", stat.isPositive ? "text-primary" : "text-destructive")}>
                 {stat.change}
               </span>
-              <span className="text-muted-foreground text-sm">vs last month</span>
+              <span className="text-xs sm:text-sm text-muted-foreground hidden sm:inline">vs last month</span>
             </div>
           </div>
         ))}
       </div>
 
       {/* Recent Activity */}
-      <div className="glass-card p-6">
-        <h2 className={cn("text-xl font-semibold text-foreground mb-6", isRTL && "text-right")}>
+      <div className="glass-card p-4 sm:p-6">
+        <h2 className={cn("text-lg sm:text-xl font-semibold text-foreground mb-4 sm:mb-6", isRTL && "text-right")}>
           {t('dashboard.recentActivity')}
         </h2>
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {recentProperties.map((property, index) => (
             <div 
               key={index}
               onClick={() => navigate('/properties')}
               className={cn(
-                "flex items-center justify-between p-4 bg-secondary/50 rounded-lg hover:bg-secondary transition-colors cursor-pointer",
+                "flex items-center justify-between p-3 sm:p-4 bg-secondary/50 rounded-lg hover:bg-secondary transition-colors cursor-pointer gap-3",
                 isRTL && "flex-row-reverse"
               )}
             >
-              <div className={cn("flex items-center gap-4", isRTL && "flex-row-reverse")}>
-                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <Building2 className="w-6 h-6 text-primary" />
+              <div className={cn("flex items-center gap-3 sm:gap-4 min-w-0 flex-1", isRTL && "flex-row-reverse")}>
+                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                  <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
                 </div>
-                <div className={isRTL ? "text-right" : ""}>
-                  <p className="font-medium text-foreground">{property.address}</p>
+                <div className={cn("min-w-0", isRTL ? "text-right" : "")}>
+                  <p className="font-medium text-foreground text-sm sm:text-base truncate">{property.address}</p>
                   <span className={cn(
-                    "inline-block px-2 py-1 rounded text-xs mt-1",
+                    "inline-block px-2 py-0.5 sm:py-1 rounded text-xs mt-1",
                     statusColors[property.status as keyof typeof statusColors]
                   )}>
                     {property.status.charAt(0).toUpperCase() + property.status.slice(1)}
                   </span>
                 </div>
               </div>
-              <div className={cn("text-right", isRTL && "text-left")}>
-                <p className="font-semibold text-foreground">{property.value}</p>
-                <p className="text-sm text-primary">ROI: {property.roi}</p>
+              <div className={cn("text-right flex-shrink-0", isRTL && "text-left")}>
+                <p className="font-semibold text-foreground text-sm sm:text-base">{property.value}</p>
+                <p className="text-xs sm:text-sm text-primary">ROI: {property.roi}</p>
               </div>
             </div>
           ))}
@@ -196,20 +204,20 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         {quickActions.map((action, index) => (
           <div 
             key={index}
             onClick={() => navigate(action.path)}
-            className="glass-card p-6 cursor-pointer hover:border-primary/30 transition-all group"
+            className="glass-card p-4 sm:p-6 cursor-pointer hover:border-primary/30 transition-all group"
           >
-            <div className={cn("w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4", action.color)}>
-              <action.icon className="w-6 h-6" />
+            <div className={cn("w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-primary/10 flex items-center justify-center mb-3 sm:mb-4", action.color)}>
+              <action.icon className="w-5 h-5 sm:w-6 sm:h-6" />
             </div>
-            <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
+            <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors text-sm sm:text-base">
               {action.title}
             </h3>
-            <p className="text-sm text-muted-foreground mt-1">{action.desc}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground mt-1">{action.desc}</p>
           </div>
         ))}
       </div>
