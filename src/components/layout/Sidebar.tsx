@@ -9,7 +9,8 @@ import {
   Building2,
   LogOut,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  BarChart3
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,9 +29,10 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
   const navItems = [
     { icon: LayoutDashboard, label: t('nav.dashboard'), path: '/dashboard' },
     { icon: Brain, label: t('nav.analyzer'), path: '/analyzer' },
+    { icon: Building2, label: t('nav.properties'), path: '/properties' },
+    { icon: BarChart3, label: t('nav.analytics') || 'Analytics', path: '/analytics' },
     { icon: GraduationCap, label: t('nav.academy'), path: '/academy' },
     { icon: Users, label: t('nav.team'), path: '/team' },
-    { icon: Building2, label: t('nav.properties'), path: '/properties' },
     { icon: Settings, label: t('nav.settings'), path: '/settings' },
   ];
 

@@ -104,6 +104,7 @@ export type Database = {
           current_value: number | null
           financial_data: Json | null
           id: string
+          image_url: string | null
           monthly_expenses: number | null
           monthly_rent: number | null
           notes: string | null
@@ -122,6 +123,7 @@ export type Database = {
           current_value?: number | null
           financial_data?: Json | null
           id?: string
+          image_url?: string | null
           monthly_expenses?: number | null
           monthly_rent?: number | null
           notes?: string | null
@@ -140,6 +142,7 @@ export type Database = {
           current_value?: number | null
           financial_data?: Json | null
           id?: string
+          image_url?: string | null
           monthly_expenses?: number | null
           monthly_rent?: number | null
           notes?: string | null
