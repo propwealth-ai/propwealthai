@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Building2, 
@@ -10,7 +10,10 @@ import {
   GitCompare,
   Check,
   X,
-  BarChart3
+  BarChart3,
+  Edit,
+  Trash2,
+  MoreVertical
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -26,6 +29,22 @@ import {
   DialogTitle,
   DialogDescription 
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { 
   Select, 
   SelectContent, 
@@ -52,7 +71,7 @@ interface Property {
   image_url?: string | null;
 }
 
-const Properties: React.FC = () => {
+const Properties = () => {
   const { t, isRTL } = useLanguage();
   const { profile } = useAuth();
   const navigate = useNavigate();
@@ -64,6 +83,11 @@ const Properties: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
+  
+  // Quick delete state
+  const [propertyToDelete, setPropertyToDelete] = useState<Property | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Comparison mode
   const [compareMode, setCompareMode] = useState(false);
@@ -250,6 +274,48 @@ const Properties: React.FC = () => {
     setSelectedForComparison([]);
   };
 
+  const handleQuickDelete = async () => {
+    if (!propertyToDelete) return;
+    
+    setIsDeleting(true);
+    const { error } = await supabase
+      .from('properties')
+      .delete()
+      .eq('id', propertyToDelete.id);
+
+    setIsDeleting(false);
+
+    if (error) {
+      toast({
+        title: t('common.error') || "Error",
+        description: t('properties.deleteFailed') || "Failed to delete property",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    toast({
+      title: t('common.success') || "Success",
+      description: t('properties.deleteSuccess') || "Property deleted successfully"
+    });
+    
+    setIsDeleteDialogOpen(false);
+    setPropertyToDelete(null);
+    fetchProperties();
+  };
+
+  const handleEditProperty = (property: Property, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedProperty(property);
+    setIsDetailsOpen(true);
+  };
+
+  const handleDeleteClick = (property: Property, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPropertyToDelete(property);
+    setIsDeleteDialogOpen(true);
+  };
+
   const statusColors: Record<string, string> = {
     new: 'bg-blue-500/20 text-blue-400 border-blue-500/50',
     analyzing: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/50',
@@ -405,8 +471,8 @@ const Properties: React.FC = () => {
                 )}
                 style={{ animationDelay: `${index * 100}ms` }}
               >
-                {/* Compare Checkbox */}
-                {compareMode && (
+                {/* Compare Checkbox or Action Menu */}
+                {compareMode ? (
                   <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10">
                     <div className={cn(
                       "w-6 h-6 rounded-full flex items-center justify-center transition-all",
@@ -414,6 +480,37 @@ const Properties: React.FC = () => {
                     )}>
                       {isSelected && <Check className="w-4 h-4 text-primary-foreground" />}
                     </div>
+                  </div>
+                ) : (
+                  <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="secondary"
+                          size="icon"
+                          className="h-8 w-8 bg-background/80 backdrop-blur-sm border border-border/50 hover:bg-background"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40">
+                        <DropdownMenuItem 
+                          onClick={(e) => handleEditProperty(property, e as unknown as React.MouseEvent)}
+                          className="gap-2 cursor-pointer"
+                        >
+                          <Edit className="w-4 h-4" />
+                          {t('properties.edit') || 'Edit'}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={(e) => handleDeleteClick(property, e as unknown as React.MouseEvent)}
+                          className="gap-2 cursor-pointer text-destructive focus:text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          {t('properties.delete') || 'Delete'}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 )}
 
@@ -644,6 +741,40 @@ const Properties: React.FC = () => {
         }}
         isRTL={isRTL}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">
+              {t('properties.confirmDelete') || 'Confirm Delete'}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              {t('properties.deleteWarning') || 'Are you sure you want to delete this property? This action cannot be undone.'}
+              {propertyToDelete && (
+                <span className="block mt-2 font-medium text-foreground">
+                  {propertyToDelete.address}
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel 
+              onClick={() => setPropertyToDelete(null)}
+              className="border-border"
+            >
+              {t('common.cancel') || 'Cancel'}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleQuickDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? (t('common.deleting') || 'Deleting...') : (t('common.delete') || 'Delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
