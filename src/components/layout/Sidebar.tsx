@@ -12,7 +12,8 @@ import {
   ChevronRight,
   BarChart3,
   History,
-  ShieldCheck
+  ShieldCheck,
+  Award
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -123,12 +124,28 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
           </NavLink>
         ))}
         
+        {/* Affiliate Link - Only visible to influencers */}
+        {profile?.is_influencer && (
+          <NavLink
+            to="/affiliate"
+            className={cn(
+              "nav-item mt-4 border-t border-sidebar-border pt-4",
+              isActive('/affiliate') && "active",
+              collapsed && "justify-center px-3"
+            )}
+          >
+            <Award className="w-5 h-5 flex-shrink-0 text-primary" />
+            {!collapsed && <span className="truncate text-primary">{t('nav.affiliate')}</span>}
+          </NavLink>
+        )}
+        
         {/* Admin Link - Only visible to admins */}
         {isAdmin && (
           <NavLink
             to="/admin"
             className={cn(
-              "nav-item mt-4 border-t border-sidebar-border pt-4",
+              "nav-item",
+              profile?.is_influencer ? "" : "mt-4 border-t border-sidebar-border pt-4",
               isActive('/admin') && "active",
               collapsed && "justify-center px-3"
             )}
