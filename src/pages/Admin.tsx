@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Navigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Handshake, CreditCard, ShieldCheck } from 'lucide-react';
+import { LayoutDashboard, Users, Handshake, CreditCard, ShieldCheck, Wallet } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAdmin } from '@/hooks/useAdmin';
 import { cn } from '@/lib/utils';
@@ -9,6 +9,7 @@ import AdminOverview from '@/components/admin/AdminOverview';
 import AdminUsers from '@/components/admin/AdminUsers';
 import AdminPartners from '@/components/admin/AdminPartners';
 import AdminTransactions from '@/components/admin/AdminTransactions';
+import AdminWithdrawals from '@/components/admin/AdminWithdrawals';
 
 const Admin: React.FC = () => {
   const { t, isRTL } = useLanguage();
@@ -37,6 +38,7 @@ const Admin: React.FC = () => {
     { id: 'users', label: t('admin.users'), icon: Users },
     { id: 'partners', label: t('admin.partners'), icon: Handshake },
     { id: 'transactions', label: t('admin.transactions'), icon: CreditCard },
+    { id: 'withdrawals', label: t('admin.withdrawals'), icon: Wallet },
   ];
 
   return (
@@ -82,6 +84,9 @@ const Admin: React.FC = () => {
           </TabsContent>
           <TabsContent value="transactions" className="mt-0">
             <AdminTransactions />
+          </TabsContent>
+          <TabsContent value="withdrawals" className="mt-0">
+            <AdminWithdrawals />
           </TabsContent>
         </div>
       </Tabs>
