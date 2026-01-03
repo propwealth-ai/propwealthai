@@ -254,6 +254,9 @@ const AdminPartners: React.FC = () => {
                   className="input-executive"
                 />
                 <p className="text-xs text-muted-foreground">{t('admin.partnerEmailNote')}</p>
+                <div className="p-3 mt-2 rounded-lg bg-warning/10 border border-warning/20">
+                  <p className="text-xs text-warning">{t('admin.partnerMustHaveAccount')}</p>
+                </div>
               </div>
               <div className="space-y-2">
                 <Label>{t('admin.referralCode')}</Label>
