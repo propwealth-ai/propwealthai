@@ -11,6 +11,11 @@ interface Profile {
   team_role: string;
   language_pref: string;
   must_change_password: boolean;
+  is_influencer: boolean;
+  referral_code: string | null;
+  referred_by: string | null;
+  plan_type: string;
+  payment_status: string;
 }
 
 interface AuthContextType {

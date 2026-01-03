@@ -59,8 +59,13 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          is_influencer: boolean
           language_pref: Database["public"]["Enums"]["language_code"]
           must_change_password: boolean
+          payment_status: string
+          plan_type: string
+          referral_code: string | null
+          referred_by: string | null
           team_id: string | null
           team_role: Database["public"]["Enums"]["team_role"]
           updated_at: string
@@ -71,8 +76,13 @@ export type Database = {
           email: string
           full_name?: string | null
           id: string
+          is_influencer?: boolean
           language_pref?: Database["public"]["Enums"]["language_code"]
           must_change_password?: boolean
+          payment_status?: string
+          plan_type?: string
+          referral_code?: string | null
+          referred_by?: string | null
           team_id?: string | null
           team_role?: Database["public"]["Enums"]["team_role"]
           updated_at?: string
@@ -83,8 +93,13 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          is_influencer?: boolean
           language_pref?: Database["public"]["Enums"]["language_code"]
           must_change_password?: boolean
+          payment_status?: string
+          plan_type?: string
+          referral_code?: string | null
+          referred_by?: string | null
           team_id?: string | null
           team_role?: Database["public"]["Enums"]["team_role"]
           updated_at?: string
@@ -278,6 +293,47 @@ export type Database = {
         }
         Relationships: []
       }
+      transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          description: string | null
+          id: string
+          referral_code: string | null
+          status: string
+          user_id: string | null
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          description?: string | null
+          id?: string
+          referral_code?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          description?: string | null
+          id?: string
+          referral_code?: string | null
+          status?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -331,6 +387,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_admin: { Args: { _user_id: string }; Returns: boolean }
       is_team_owner: {
         Args: { check_team_id: string; user_id: string }
         Returns: boolean
