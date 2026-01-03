@@ -6,6 +6,16 @@ export interface DeepScanMetadata {
   currency_code: string;
   property_type?: string;
   location_quality?: string;
+  ownership_type?: 'fee_simple' | 'leasehold' | 'land_lease' | 'coop';
+}
+
+// Validation Warning for data quality issues
+export interface ValidationWarning {
+  type: 'price_mismatch' | 'leasehold_detected' | 'expense_anomaly' | 'negative_cashflow' | 'data_quality';
+  severity: 'info' | 'warning' | 'critical';
+  message: string;
+  details?: string;
+  affected_metric?: string;
 }
 
 // Operating Expenses Breakdown
@@ -33,6 +43,7 @@ export interface MarketComparable {
 
 export interface DeepScanFinancials {
   purchase_price: number;
+  listing_price?: number;
   estimated_monthly_rent: number;
   operating_expenses: number;
   opex_breakdown?: OpExBreakdown;
@@ -44,6 +55,18 @@ export interface DeepScanFinancials {
   gross_rent_multiplier: number;
   debt_service_coverage: number;
   suggested_offer_price?: number;
+  // Validation fields
+  price_confidence_score?: number;
+  price_source?: 'user_input' | 'listing_price' | 'ai_estimated';
+  validation_warnings?: ValidationWarning[];
+  expense_warning?: string;
+}
+
+export interface RawPropertyData {
+  beds?: number;
+  baths?: number;
+  sqft?: number;
+  year_built?: number;
 }
 
 export interface RehabSuggestion {
@@ -71,6 +94,7 @@ export interface DeepScanResult {
   property_id: string;
   metadata: DeepScanMetadata;
   financials: DeepScanFinancials;
+  raw_property_data?: RawPropertyData;
   ai_analysis: DeepScanAIAnalysis;
   rehab_suggestions: RehabSuggestion[];
   market_comparables?: MarketComparable[];
