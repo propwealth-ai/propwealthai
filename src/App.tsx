@@ -12,6 +12,7 @@ import Dashboard from "@/pages/Dashboard";
 import Academy from "@/pages/Academy";
 import Team from "@/pages/Team";
 import Analyzer from "@/pages/Analyzer";
+import AnalysisHistory from "@/pages/AnalysisHistory";
 import Properties from "@/pages/Properties";
 import Settings from "@/pages/Settings";
 import Analytics from "@/pages/Analytics";
@@ -36,6 +37,7 @@ const App = () => (
                 <Route path="/academy" element={<Academy />} />
                 <Route path="/team" element={<Team />} />
                 <Route path="/analyzer" element={<Analyzer />} />
+                <Route path="/analysis-history" element={<AnalysisHistory />} />
                 <Route path="/properties" element={<Properties />} />
                 <Route path="/analytics" element={<Analytics />} />
                 <Route path="/settings" element={<Settings />} />

@@ -1,7 +1,9 @@
-import React from 'react';
-import { Settings as SettingsIcon, User, Globe, Bell, Shield } from 'lucide-react';
+import React, { useState } from 'react';
+import { Settings as SettingsIcon, User, Globe, Bell, Shield, Database, Trash2, RefreshCw } from 'lucide-react';
 import { useLanguage, LanguageCode } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useRBAC } from '@/hooks/useRBAC';
+import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -12,8 +14,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-
 const languages: { code: LanguageCode; name: string; flag: string }[] = [
   { code: 'en', name: 'English', flag: '🇺🇸' },
   { code: 'pt', name: 'Português', flag: '🇧🇷' },
@@ -27,7 +39,86 @@ const languages: { code: LanguageCode; name: string; flag: string }[] = [
 const Settings: React.FC = () => {
   const { t, language, setLanguage, isRTL } = useLanguage();
   const { profile } = useAuth();
+  const { role } = useRBAC();
+  const { toast } = useToast();
+  const [isClearingCache, setIsClearingCache] = useState(false);
+  const [showClearCacheDialog, setShowClearCacheDialog] = useState(false);
+  const [cacheStats, setCacheStats] = useState<{ total: number; expired: number } | null>(null);
 
+  const isAdmin = role === 'owner' || role === 'admin';
+
+  const fetchCacheStats = async () => {
+    const { data, error } = await supabase
+      .from('property_analyses')
+      .select('id, expires_at');
+    
+    if (!error && data) {
+      const now = new Date();
+      const expired = data.filter(a => new Date(a.expires_at) < now).length;
+      setCacheStats({ total: data.length, expired });
+    }
+  };
+
+  React.useEffect(() => {
+    if (isAdmin) {
+      fetchCacheStats();
+    }
+  }, [isAdmin]);
+
+  const handleClearAllCache = async () => {
+    setIsClearingCache(true);
+    try {
+      const { error } = await supabase
+        .from('property_analyses')
+        .delete()
+        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+
+      if (error) throw error;
+
+      toast({
+        title: t('settings.cacheCleared'),
+        description: t('settings.cacheClearedDesc'),
+      });
+      setCacheStats({ total: 0, expired: 0 });
+    } catch (error) {
+      console.error('Error clearing cache:', error);
+      toast({
+        title: t('common.error'),
+        description: t('settings.cacheClearError'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsClearingCache(false);
+      setShowClearCacheDialog(false);
+    }
+  };
+
+  const handleClearExpiredCache = async () => {
+    setIsClearingCache(true);
+    try {
+      const { error } = await supabase
+        .from('property_analyses')
+        .delete()
+        .lt('expires_at', new Date().toISOString());
+
+      if (error) throw error;
+
+      toast({
+        title: t('settings.expiredCacheCleared'),
+        description: t('settings.expiredCacheClearedDesc'),
+      });
+      fetchCacheStats();
+    } catch (error) {
+      console.error('Error clearing expired cache:', error);
+      toast({
+        title: t('common.error'),
+        description: t('settings.cacheClearError'),
+        variant: 'destructive',
+      });
+    } finally {
+      setIsClearingCache(false);
+    }
+  };
   return (
     <div className="space-y-8 animate-fade-in max-w-4xl">
       {/* Header */}
@@ -185,6 +276,97 @@ const Settings: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Cache Management Section - Admin Only */}
+      {isAdmin && (
+        <div className="glass-card p-6">
+          <div className={cn("flex items-center gap-3 mb-6", isRTL && "flex-row-reverse")}>
+            <Database className="w-5 h-5 text-primary" />
+            <h2 className="text-xl font-semibold text-foreground">{t('settings.cacheManagement')}</h2>
+          </div>
+          
+          <div className="space-y-4">
+            <p className="text-muted-foreground">
+              {t('settings.cacheManagementDesc')}
+            </p>
+
+            {/* Cache Stats */}
+            {cacheStats && (
+              <div className={cn("flex gap-6 mb-4", isRTL && "flex-row-reverse")}>
+                <div className="flex items-center gap-2">
+                  <Database className="w-4 h-4 text-primary" />
+                  <span className="text-muted-foreground">{t('settings.totalCached')}:</span>
+                  <span className="font-semibold text-foreground">{cacheStats.total}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 text-warning" />
+                  <span className="text-muted-foreground">{t('settings.expiredEntries')}:</span>
+                  <span className="font-semibold text-foreground">{cacheStats.expired}</span>
+                </div>
+              </div>
+            )}
+
+            <div className={cn(
+              "flex items-center justify-between p-4 bg-secondary/50 rounded-lg",
+              isRTL && "flex-row-reverse"
+            )}>
+              <div className={isRTL ? "text-right" : ""}>
+                <p className="font-medium text-foreground">{t('settings.clearExpiredCache')}</p>
+                <p className="text-sm text-muted-foreground">{t('settings.clearExpiredCacheDesc')}</p>
+              </div>
+              <Button 
+                variant="outline" 
+                className="border-warning/50 text-warning hover:bg-warning/10"
+                onClick={handleClearExpiredCache}
+                disabled={isClearingCache}
+              >
+                {isClearingCache ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                {t('settings.clearExpired')}
+              </Button>
+            </div>
+            
+            <div className={cn(
+              "flex items-center justify-between p-4 bg-destructive/10 rounded-lg border border-destructive/20",
+              isRTL && "flex-row-reverse"
+            )}>
+              <div className={isRTL ? "text-right" : ""}>
+                <p className="font-medium text-foreground">{t('settings.clearAllCache')}</p>
+                <p className="text-sm text-muted-foreground">{t('settings.clearAllCacheDesc')}</p>
+              </div>
+              <Button 
+                variant="destructive"
+                onClick={() => setShowClearCacheDialog(true)}
+                disabled={isClearingCache}
+              >
+                {isClearingCache ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
+                {t('settings.clearAll')}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Clear Cache Confirmation Dialog */}
+      <AlertDialog open={showClearCacheDialog} onOpenChange={setShowClearCacheDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('settings.confirmClearCache')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('settings.confirmClearCacheDesc')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleClearAllCache}
+              disabled={isClearingCache}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isClearingCache ? t('common.loading') : t('settings.clearAll')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
