@@ -354,6 +354,10 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'admin.recentTransactions': 'Recent Transactions',
     'admin.noTransactions': 'No transactions yet',
     'admin.mockDataNote': 'Showing demo transactions. Connect Stripe for real data.',
+    'admin.totalCommissions': 'Total Commissions',
+    'admin.affiliateReferrals': 'Affiliate Referrals',
+    'admin.noAffiliateReferrals': 'No affiliate referrals yet',
+    'admin.referred': 'Referred',
     
     // Referral System
     'referral.title': 'Referral Code',
@@ -626,6 +630,15 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'properties.deleteWarning': 'Tem certeza que deseja excluir esta propriedade? Esta ação não pode ser desfeita.',
     'properties.deleteSuccess': 'Propriedade excluída com sucesso',
     'properties.updateSuccess': 'Propriedade atualizada com sucesso',
+    
+    // Admin Dashboard (Portuguese)
+    'admin.recentTransactions': 'Transações Recentes',
+    'admin.noTransactions': 'Nenhuma transação ainda',
+    'admin.mockDataNote': 'Mostrando transações de demonstração. Conecte o Stripe para dados reais.',
+    'admin.totalCommissions': 'Total de Comissões',
+    'admin.affiliateReferrals': 'Indicações de Afiliados',
+    'admin.noAffiliateReferrals': 'Nenhuma indicação de afiliado ainda',
+    'admin.referred': 'Indicado',
     
     'common.save': 'Salvar',
     'common.cancel': 'Cancelar',
