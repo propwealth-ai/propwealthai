@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import ReferralCodeInput from '@/components/settings/ReferralCodeInput';
 const languages: { code: LanguageCode; name: string; flag: string }[] = [
   { code: 'en', name: 'English', flag: '🇺🇸' },
   { code: 'pt', name: 'Português', flag: '🇧🇷' },
@@ -167,6 +168,9 @@ const Settings: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* Referral Code Section */}
+      <ReferralCodeInput />
 
       {/* Language Section */}
       <div className="glass-card p-6">

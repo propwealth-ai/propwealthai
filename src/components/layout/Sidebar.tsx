@@ -11,11 +11,13 @@ import {
   ChevronLeft,
   ChevronRight,
   BarChart3,
-  History
+  History,
+  ShieldCheck
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRBAC, RolePermissions } from '@/hooks/useRBAC';
+import { useAdmin } from '@/hooks/useAdmin';
 import { cn } from '@/lib/utils';
 
 interface SidebarProps {
@@ -34,6 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
   const { t, isRTL } = useLanguage();
   const { signOut, profile } = useAuth();
   const { canView, role } = useRBAC();
+  const { isAdmin } = useAdmin();
   const location = useLocation();
 
   const navItems: NavItem[] = [
@@ -114,6 +117,21 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
             {!collapsed && <span className="truncate">{item.label}</span>}
           </NavLink>
         ))}
+        
+        {/* Admin Link - Only visible to admins */}
+        {isAdmin && (
+          <NavLink
+            to="/admin"
+            className={cn(
+              "nav-item mt-4 border-t border-sidebar-border pt-4",
+              isActive('/admin') && "active",
+              collapsed && "justify-center px-3"
+            )}
+          >
+            <ShieldCheck className="w-5 h-5 flex-shrink-0 text-warning" />
+            {!collapsed && <span className="truncate text-warning">{t('nav.admin')}</span>}
+          </NavLink>
+        )}
       </nav>
 
       {/* User Section */}
