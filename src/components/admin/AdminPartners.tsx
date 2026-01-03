@@ -43,7 +43,7 @@ const AdminPartners: React.FC = () => {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newPartner, setNewPartner] = useState({ email: '', name: '', code: '' });
 
-  // Fetch influencers
+  // Fetch influencers with affiliate stats
   const { data: influencers, isLoading } = useQuery({
     queryKey: ['admin-influencers'],
     queryFn: async () => {
@@ -55,31 +55,22 @@ const AdminPartners: React.FC = () => {
       
       if (error) throw error;
 
-      // Get referral counts for each influencer
+      // Get referral stats from affiliate_referrals table
       const influencersWithStats = await Promise.all(
         (profiles || []).map(async (profile) => {
-          if (!profile.referral_code) {
-            return { ...profile, referredCount: 0, totalRevenue: 0 };
-          }
+          // Get stats from affiliate_referrals table
+          const { data: referrals } = await supabase
+            .from('affiliate_referrals')
+            .select('id, commission_amount')
+            .eq('referrer_id', profile.id);
 
-          const { count } = await supabase
-            .from('profiles')
-            .select('*', { count: 'exact', head: true })
-            .eq('referred_by', profile.referral_code);
-
-          // Mock revenue calculation ($29 per pro user referred)
-          const { data: referredUsers } = await supabase
-            .from('profiles')
-            .select('plan_type')
-            .eq('referred_by', profile.referral_code)
-            .eq('plan_type', 'pro');
-
-          const revenue = (referredUsers?.length || 0) * 29;
+          const referredCount = referrals?.length || 0;
+          const totalRevenue = referrals?.reduce((sum, r) => sum + Number(r.commission_amount || 0), 0) || 0;
 
           return {
             ...profile,
-            referredCount: count || 0,
-            totalRevenue: revenue,
+            referredCount,
+            totalRevenue,
           };
         })
       );

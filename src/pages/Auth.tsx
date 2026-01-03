@@ -24,12 +24,20 @@ const Auth: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
-  // Auto-populate referral code from URL
+  // Auto-populate referral code from URL and save to localStorage
   useEffect(() => {
     const refCode = searchParams.get('ref');
     if (refCode) {
       setReferralCode(refCode);
       setIsSignUp(true); // Switch to signup if referral code present
+      // Store in localStorage for use during signup
+      localStorage.setItem('propwealth_referral_code', refCode);
+    } else {
+      // Check localStorage for existing referral code
+      const storedCode = localStorage.getItem('propwealth_referral_code');
+      if (storedCode) {
+        setReferralCode(storedCode);
+      }
     }
   }, [searchParams]);
 

@@ -35,9 +35,21 @@ const AdminOverview: React.FC = () => {
     },
   });
 
+  // Fetch MRR using the database function
+  const { data: mrrData } = useQuery({
+    queryKey: ['admin-mrr'],
+    queryFn: async () => {
+      const { data, error } = await supabase.rpc('calculate_mrr');
+      if (error) throw error;
+      return data as number;
+    },
+  });
+
   // Calculate KPIs
   const totalUsers = profiles?.length || 0;
   const proUsers = profiles?.filter(p => p.plan_type === 'pro').length || 0;
+  const businessUsers = profiles?.filter(p => p.plan_type === 'business').length || 0;
+  const enterpriseUsers = profiles?.filter(p => p.plan_type === 'enterprise').length || 0;
   const activeUsers = profiles?.filter(p => p.payment_status === 'active').length || 0;
   
   const thirtyDaysAgo = new Date();
@@ -47,8 +59,8 @@ const AdminOverview: React.FC = () => {
   const churned = profiles?.filter(p => p.payment_status === 'cancelled' || p.payment_status === 'past_due').length || 0;
   const churnRate = totalUsers > 0 ? ((churned / totalUsers) * 100).toFixed(1) : '0';
   
-  // Calculate MRR (mock: $29/mo for pro users)
-  const mrr = proUsers * 29;
+  // Use MRR from database function
+  const mrr = mrrData || 0;
   
   // Mock growth data for charts
   const growthData = [

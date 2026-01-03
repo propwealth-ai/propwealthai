@@ -95,16 +95,54 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const signUp = async (email: string, password: string, fullName: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
-    const { error } = await supabase.auth.signUp({
+    // Get referral code from localStorage (set during Auth page load)
+    const referralCode = localStorage.getItem('propwealth_referral_code');
+    
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         emailRedirectTo: redirectUrl,
         data: {
           full_name: fullName,
+          referred_by: referralCode || null,
         },
       },
     });
+
+    // If signup successful and there's a referral code, create affiliate record
+    if (!error && data.user && referralCode) {
+      // Defer to avoid blocking signup
+      setTimeout(async () => {
+        try {
+          // Find the referrer by their referral code
+          const { data: referrer } = await supabase
+            .from('profiles')
+            .select('id')
+            .eq('referral_code', referralCode)
+            .eq('is_influencer', true)
+            .maybeSingle();
+
+          if (referrer) {
+            // Create affiliate referral record
+            await supabase
+              .from('affiliate_referrals')
+              .insert({
+                referrer_id: referrer.id,
+                referred_id: data.user!.id,
+                commission_amount: 0, // Will be updated when user upgrades
+                status: 'pending'
+              });
+          }
+          
+          // Clear the referral code from localStorage
+          localStorage.removeItem('propwealth_referral_code');
+        } catch (err) {
+          console.error('Error creating affiliate referral:', err);
+        }
+      }, 1000);
+    }
+
     return { error };
   };
 
