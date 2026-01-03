@@ -50,23 +50,23 @@ const RoadToMillionCard: React.FC<RoadToMillionCardProps> = ({
           </div>
           <div className={isRTL ? "text-right" : ""}>
             <h3 className="text-base sm:text-lg font-bold text-foreground">
-              {t('dashboard.roadToMillion') || 'Road to $1M'}
+              {t('dashboard.roadToMillion')}
             </h3>
             <p className="text-xs sm:text-sm text-muted-foreground">
-              {t('dashboard.wealthJourney') || 'Your wealth building journey'}
+              {t('dashboard.wealthJourney')}
             </p>
           </div>
         </div>
         {progress >= 100 && (
           <div className="px-3 py-1 bg-primary/20 rounded-full">
-            <span className="text-xs font-semibold text-primary">🎉 {t('dashboard.goalReached') || 'Goal Reached!'}</span>
+            <span className="text-xs font-semibold text-primary">🎉 {t('dashboard.goalReached')}</span>
           </div>
         )}
       </div>
 
       {/* Current Value */}
       <div className={cn("mb-4", isRTL && "text-right")}>
-        <p className="text-xs text-muted-foreground mb-1">{t('dashboard.currentNetWorth') || 'Current Net Worth'}</p>
+        <p className="text-xs text-muted-foreground mb-1">{t('dashboard.currentNetWorth')}</p>
         <div className={cn("flex items-baseline gap-2", isRTL && "flex-row-reverse justify-end")}>
           <span className="text-2xl sm:text-4xl font-bold text-money">
             ${currentNetWorth.toLocaleString()}
@@ -144,12 +144,12 @@ const RoadToMillionCard: React.FC<RoadToMillionCardProps> = ({
           <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
             <nextMilestone.icon className="w-4 h-4 text-primary" />
             <span className="text-sm text-muted-foreground">
-              {t('dashboard.nextMilestone') || 'Next milestone'}:
+              {t('dashboard.nextMilestone')}:
             </span>
             <span className="text-sm font-semibold text-foreground">{nextMilestone.label}</span>
           </div>
           <span className="text-sm text-primary font-medium">
-            ${toNextMilestone.toLocaleString()} {t('dashboard.toGo') || 'to go'}
+            ${toNextMilestone.toLocaleString()} {t('dashboard.toGo')}
           </span>
         </div>
       )}
@@ -158,7 +158,7 @@ const RoadToMillionCard: React.FC<RoadToMillionCardProps> = ({
       {progress < 100 && (
         <div className={cn("mt-4 text-center", isRTL && "text-right")}>
           <p className="text-xs text-muted-foreground">
-            {t('dashboard.remainingToGoal') || 'Remaining to reach your goal'}:
+            {t('dashboard.remainingToGoal')}:
             <span className="text-primary font-semibold ml-2">${remaining.toLocaleString()}</span>
           </p>
         </div>

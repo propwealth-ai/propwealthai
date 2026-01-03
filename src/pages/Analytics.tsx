@@ -184,10 +184,10 @@ const Analytics: React.FC = () => {
           <BarChart3 className="w-10 h-10 text-muted-foreground/50" />
         </div>
         <h3 className="text-xl font-semibold text-foreground mb-2">
-          {t('analytics.noData') || 'No Data Available'}
+          {t('analytics.noData')}
         </h3>
         <p className="text-muted-foreground max-w-md">
-          {t('analytics.addPropertiesFirst') || 'Add properties to your portfolio to see analytics and insights.'}
+          {t('analytics.addPropertiesFirst')}
         </p>
       </div>
     );
@@ -200,10 +200,10 @@ const Analytics: React.FC = () => {
         <div className={isRTL ? "text-right" : ""}>
           <div className={cn("flex items-center gap-3 mb-2", isRTL && "flex-row-reverse justify-end")}>
             <BarChart3 className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
-            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{t('analytics.title') || 'Portfolio Analytics'}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{t('analytics.title')}</h1>
           </div>
           <p className="text-sm sm:text-base text-muted-foreground">
-            {t('analytics.subtitle') || 'Track your portfolio performance and growth'}
+            {t('analytics.subtitle')}
           </p>
         </div>
         <ExportPDFButton 
