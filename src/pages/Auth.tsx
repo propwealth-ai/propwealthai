@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Building2, Mail, Lock, User, ArrowRight, Tag, CheckCircle, TrendingUp, Shield, Zap } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Tag, CheckCircle, TrendingUp, Shield, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+
+const LOGO_URL = "https://ik.imagekit.io/PropWealthAI/PropWealth%20AI%20/logo%20ofial%20propwealth%202%20-%20Copia%20(1)%20-%20Copia.png?updatedAt=1767203215713";
 
 const Auth: React.FC = () => {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -118,9 +120,11 @@ const Auth: React.FC = () => {
         {/* Content */}
         <div className="relative z-10 flex flex-col justify-center p-12 max-w-lg">
           <div className="flex items-center gap-4 mb-8">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-primary flex items-center justify-center animate-pulse-glow">
-              <Building2 className="w-8 h-8 text-primary-foreground" />
-            </div>
+            <img 
+              src={LOGO_URL} 
+              alt="PropWealth AI Logo" 
+              className="w-16 h-16 rounded-2xl object-contain animate-pulse-glow"
+            />
             <div>
               <h1 className="text-4xl font-bold text-foreground">PropWealth</h1>
               <p className="text-muted-foreground">AI Investment OS</p>
@@ -185,9 +189,11 @@ const Auth: React.FC = () => {
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden flex items-center gap-3 mb-8 justify-center">
-            <div className="w-12 h-12 rounded-xl bg-gradient-primary flex items-center justify-center">
-              <Building2 className="w-6 h-6 text-primary-foreground" />
-            </div>
+            <img 
+              src={LOGO_URL} 
+              alt="PropWealth AI Logo" 
+              className="w-12 h-12 rounded-xl object-contain"
+            />
             <div>
               <h1 className="text-2xl font-bold text-foreground">PropWealth</h1>
               <p className="text-xs text-muted-foreground">AI Investment OS</p>

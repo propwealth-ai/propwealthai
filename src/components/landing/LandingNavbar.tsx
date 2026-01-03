@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Building2, Menu, X } from 'lucide-react';
+import { Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { cn } from '@/lib/utils';
 
+const LOGO_URL = "https://ik.imagekit.io/PropWealthAI/PropWealth%20AI%20/logo%20ofial%20propwealth%202%20-%20Copia%20(1)%20-%20Copia.png?updatedAt=1767203215713";
 const LandingNavbar: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -41,9 +42,11 @@ const LandingNavbar: React.FC = () => {
             className="flex items-center gap-3 cursor-pointer"
             onClick={() => navigate('/')}
           >
-            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-primary-foreground" />
-            </div>
+            <img 
+              src={LOGO_URL} 
+              alt="PropWealth AI Logo" 
+              className="w-10 h-10 rounded-xl object-contain"
+            />
             <div className="hidden sm:block">
               <h1 className="text-xl font-bold text-foreground">PropWealth</h1>
               <p className="text-xs text-muted-foreground -mt-1">AI Investment OS</p>
