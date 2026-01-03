@@ -21,7 +21,9 @@ import {
   BadgeCheck,
   Link,
   PlusCircle,
-  Check
+  Check,
+  RefreshCw,
+  Database
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -35,6 +37,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import OpExBreakdown from '@/components/analyzer/OpExBreakdown';
 import MarketComparables from '@/components/analyzer/MarketComparables';
 import FiveYearProjection from '@/components/analyzer/FiveYearProjection';
+import { Badge } from '@/components/ui/badge';
+
+interface AnalysisResultWithCache extends DeepScanResult {
+  cached?: boolean;
+  cache_age_minutes?: number;
+}
 
 const Analyzer = () => {
   const { t, isRTL, language } = useLanguage();
@@ -44,13 +52,13 @@ const Analyzer = () => {
   const [purchasePrice, setPurchasePrice] = useState('');
   const [monthlyRent, setMonthlyRent] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
-  const [results, setResults] = useState<DeepScanResult | null>(null);
+  const [results, setResults] = useState<AnalysisResultWithCache | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'quick' | 'deep_scan'>('deep_scan');
   const [savingToPortfolio, setSavingToPortfolio] = useState(false);
   const [savedToPortfolio, setSavedToPortfolio] = useState(false);
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = async (forceRefresh = false) => {
     if (mode === 'deep_scan' && !url) {
       toast.error(t('analyzer.urlRequired') || 'Please enter a property URL for Deep Scan');
       return;
@@ -63,6 +71,7 @@ const Analyzer = () => {
     setAnalyzing(true);
     setError(null);
     setResults(null);
+    setSavedToPortfolio(false);
     
     try {
       const { data, error: fnError } = await supabase.functions.invoke('analyze-property', {
@@ -75,6 +84,7 @@ const Analyzer = () => {
           mode,
           userId: profile?.id,
           teamId: profile?.team_id,
+          forceRefresh,
         }
       });
 
@@ -86,8 +96,13 @@ const Analyzer = () => {
         throw new Error(data.error);
       }
 
-      setResults(data as DeepScanResult);
-      toast.success(t('analyzer.analysisComplete') || 'Deep Scan complete!');
+      setResults(data as AnalysisResultWithCache);
+      
+      if (data.cached) {
+        toast.success(t('analyzer.cachedResult') || `Cached result (${data.cache_age_minutes} min ago)`);
+      } else {
+        toast.success(t('analyzer.analysisComplete') || 'Deep Scan complete!');
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Analysis failed';
       setError(message);
@@ -276,7 +291,7 @@ const Analyzer = () => {
           </Tabs>
 
           <Button
-            onClick={handleAnalyze}
+            onClick={() => handleAnalyze(false)}
             disabled={analyzing}
             className="w-full btn-premium text-primary-foreground gap-2 h-12 mt-6"
           >
@@ -288,7 +303,7 @@ const Analyzer = () => {
                     <Sparkles className="w-5 h-5 opacity-50" />
                   </div>
                 </div>
-                {t('analyzer.deepScanning') || 'Deep Scanning with Gemini 3 Pro...'}
+                {t('analyzer.deepScanning') || 'Deep Scanning...'}
               </>
             ) : (
               <>
@@ -326,6 +341,32 @@ const Analyzer = () => {
         <div className="glass-card p-6">
           {results ? (
             <div className="space-y-6 animate-fade-in">
+              {/* Cache Status Badge */}
+              {results.cached && (
+                <div className="flex items-center justify-between p-3 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <div className="flex items-center gap-2">
+                    <Database className="w-4 h-4 text-blue-400" />
+                    <span className="text-sm text-blue-400">
+                      {t('analyzer.cachedResult') || 'Cached Result'} 
+                      {results.cache_age_minutes && ` (${results.cache_age_minutes} min)`}
+                    </span>
+                    <Badge variant="outline" className="text-xs border-blue-500/30 text-blue-400">
+                      {t('analyzer.deterministic') || 'Deterministic'}
+                    </Badge>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleAnalyze(true)}
+                    disabled={analyzing}
+                    className="text-blue-400 hover:text-blue-300 hover:bg-blue-500/10 gap-1"
+                  >
+                    <RefreshCw className={cn("w-4 h-4", analyzing && "animate-spin")} />
+                    {t('analyzer.forceRefresh') || 'Refresh'}
+                  </Button>
+                </div>
+              )}
+
               {/* Jurisdiction & Verdict Header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">

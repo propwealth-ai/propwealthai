@@ -167,6 +167,42 @@ export type Database = {
           },
         ]
       }
+      property_analyses: {
+        Row: {
+          analysis_json: Json
+          calculated_metrics: Json
+          created_at: string
+          expires_at: string
+          id: string
+          input_hash: string
+          last_updated: string
+          property_url: string
+          raw_extracted_data: Json
+        }
+        Insert: {
+          analysis_json: Json
+          calculated_metrics: Json
+          created_at?: string
+          expires_at?: string
+          id?: string
+          input_hash: string
+          last_updated?: string
+          property_url: string
+          raw_extracted_data: Json
+        }
+        Update: {
+          analysis_json?: Json
+          calculated_metrics?: Json
+          created_at?: string
+          expires_at?: string
+          id?: string
+          input_hash?: string
+          last_updated?: string
+          property_url?: string
+          raw_extracted_data?: Json
+        }
+        Relationships: []
+      }
       team_invitations: {
         Row: {
           accepted_at: string | null

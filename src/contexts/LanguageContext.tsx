@@ -213,6 +213,12 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'analyzer.alreadySaved': 'Already in Portfolio',
     'analyzer.saveToPortfolioDesc': 'Save this analyzed property to your portfolio for tracking',
     
+    // Analyzer - Cache
+    'analyzer.cachedResult': 'Cached Result',
+    'analyzer.deterministic': 'Deterministic',
+    'analyzer.forceRefresh': 'Refresh',
+    'analyzer.freshAnalysis': 'Fresh analysis completed',
+    
     // Properties - Actions
     'properties.edit': 'Edit',
     'properties.delete': 'Delete',
