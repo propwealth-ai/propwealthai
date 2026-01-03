@@ -438,9 +438,11 @@ serve(async (req) => {
 
 // ============= STEP 2: AI EXTRACTS RAW DATA ONLY =============
     // CRITICAL: Extract unit identifier from URL for precision matching
-    const urlUnitMatch = url?.match(/(?:apt|unit|#|-)?\s*(\d+[a-zA-Z]?|[a-zA-Z]\d+)/i);
+    // FIXED: Look specifically for APT, UNIT, or # followed by the unit number
+    // This regex now correctly matches "APT-7I" instead of "100" from the street address
+    const urlUnitMatch = url?.match(/(?:apt|unit|#)[-\s]*([a-zA-Z0-9]+)/i);
     const targetUnit = urlUnitMatch ? urlUnitMatch[1].toUpperCase() : null;
-    console.log('Target unit from URL:', targetUnit);
+    console.log('Target unit from URL:', targetUnit, '| Full URL:', url);
 
     const systemPrompt = `You are PropWealth AI Data Extractor. Your ONLY job is to extract raw property data from listings.
 
@@ -823,10 +825,39 @@ Return valid JSON only.`;
       }
     }
 
+    // Add debug log for diagnostics
+    const debugLog = {
+      unit_extraction: {
+        target_unit_from_url: targetUnit,
+        extracted_unit_from_ai: extractedUnit,
+        unit_match: !targetUnit || targetUnit === extractedUnit,
+      },
+      price_extraction: {
+        user_provided_price: purchasePrice || null,
+        ai_listing_price: aiListingPrice,
+        ai_fallback_price: aiFallbackPrice,
+        final_price_used: finalPrice,
+        price_source: priceSource,
+      },
+      rent_extraction: {
+        ai_extracted_rent: extractedData.raw_data?.estimated_monthly_rent || 0,
+        rent_zestimate: rentZestimate || null,
+        final_rent_used: estimatedRent,
+        is_estimated: isRentEstimated,
+      },
+      cache_status: {
+        from_cache: false,
+        cache_key: inputHash,
+      },
+    };
+
+    console.log('Debug log:', JSON.stringify(debugLog, null, 2));
+
     return new Response(JSON.stringify({
       success: true,
       mode: mode || 'quick',
       cached: false,
+      debug_log: debugLog,
       ...finalResult,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
