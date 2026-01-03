@@ -19,6 +19,7 @@ import Properties from "@/pages/Properties";
 import Settings from "@/pages/Settings";
 import Analytics from "@/pages/Analytics";
 import Admin from "@/pages/Admin";
+import Affiliate from "@/pages/Affiliate";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -46,6 +47,7 @@ const App = () => (
                   <Route path="/analytics" element={<Analytics />} />
                   <Route path="/settings" element={<Settings />} />
                   <Route path="/admin" element={<Admin />} />
+                  <Route path="/affiliate" element={<Affiliate />} />
                 </Route>
                 <Route path="*" element={<NotFound />} />
               </Routes>
