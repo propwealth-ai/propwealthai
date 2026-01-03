@@ -22,6 +22,16 @@ interface RawExtractedData {
   sqft?: number;
   year_built?: number;
   description_hints?: string[];
+  ownership_type?: string; // "fee_simple" | "leasehold" | "land_lease" | "coop"
+  listing_price?: number; // Original listing price from AI extraction
+}
+
+interface ValidationWarning {
+  type: 'price_mismatch' | 'leasehold_detected' | 'expense_anomaly' | 'negative_cashflow' | 'data_quality';
+  severity: 'info' | 'warning' | 'critical';
+  message: string;
+  details?: string;
+  affected_metric?: string;
 }
 
 interface CalculatedMetrics {
@@ -41,21 +51,145 @@ interface CalculatedMetrics {
   gross_rent_multiplier: number;
   debt_service_coverage: number;
   rehab_estimate: number;
+  // New validation fields
+  price_confidence_score: number;
+  price_source: 'user_input' | 'listing_price' | 'ai_estimated';
+  validation_warnings: ValidationWarning[];
+  expense_warning?: string;
 }
 
-function calculateDeterministicMetrics(raw: RawExtractedData): CalculatedMetrics {
-  const { purchase_price, estimated_monthly_rent, hoa_fees = 0, property_taxes_annual, insurance_annual } = raw;
+function calculateDeterministicMetrics(raw: RawExtractedData, userProvidedPrice?: number, aiExtractedPrice?: number, comparables?: any[]): CalculatedMetrics {
+  const validation_warnings: ValidationWarning[] = [];
   
-  // Fixed calculation formulas - NEVER use AI for these
+  // ============= STEP 1: OWNERSHIP TYPE VALIDATION =============
+  const ownershipType = raw.ownership_type?.toLowerCase() || 'fee_simple';
+  const isLeasehold = ownershipType.includes('leasehold') || ownershipType.includes('land_lease') || ownershipType.includes('coop');
+  
+  if (isLeasehold) {
+    validation_warnings.push({
+      type: 'leasehold_detected',
+      severity: 'critical',
+      message: `Property is ${ownershipType.toUpperCase()} - NOT Fee Simple`,
+      details: 'Leasehold/Land Lease properties have different valuation metrics. Market averages for Fee Simple properties should NOT be used for comparison.',
+    });
+  }
+
+  // ============= STEP 2: PRICE SOURCE VALIDATION =============
+  // Priority: 1) User input, 2) Listing price, 3) AI estimated (NEVER use AI market estimates)
+  let finalPrice = raw.purchase_price;
+  let priceSource: 'user_input' | 'listing_price' | 'ai_estimated' = 'ai_estimated';
+  
+  if (userProvidedPrice && userProvidedPrice > 0) {
+    finalPrice = userProvidedPrice;
+    priceSource = 'user_input';
+  } else if (raw.listing_price && raw.listing_price > 0) {
+    finalPrice = raw.listing_price;
+    priceSource = 'listing_price';
+  }
+
+  // ============= STEP 3: PRICE CONFIDENCE SCORING =============
+  let priceConfidenceScore = 100;
+  
+  if (comparables && comparables.length >= 2) {
+    // Calculate median of comparables
+    const compPrices = comparables
+      .map(c => c.sale_price)
+      .filter(p => typeof p === 'number' && p > 0)
+      .sort((a, b) => a - b);
+    
+    if (compPrices.length >= 2) {
+      const median = compPrices.length % 2 === 0 
+        ? (compPrices[compPrices.length / 2 - 1] + compPrices[compPrices.length / 2]) / 2
+        : compPrices[Math.floor(compPrices.length / 2)];
+      
+      const priceDifferential = Math.abs(finalPrice - median) / median;
+      
+      // If price differs by more than 50% from median, flag it
+      if (priceDifferential > 0.5) {
+        priceConfidenceScore = Math.max(0, Math.round(100 - (priceDifferential * 100)));
+        validation_warnings.push({
+          type: 'price_mismatch',
+          severity: 'critical',
+          message: `Listing price differs ${Math.round(priceDifferential * 100)}% from comparable median`,
+          details: `Listing: $${finalPrice.toLocaleString()}, Comparable Median: $${Math.round(median).toLocaleString()}. This requires MANUAL REVIEW.`,
+        });
+      } else if (priceDifferential > 0.25) {
+        priceConfidenceScore = Math.max(50, Math.round(100 - (priceDifferential * 50)));
+        validation_warnings.push({
+          type: 'price_mismatch',
+          severity: 'warning',
+          message: `Listing price differs ${Math.round(priceDifferential * 100)}% from comparable median`,
+          details: `Listing: $${finalPrice.toLocaleString()}, Comparable Median: $${Math.round(median).toLocaleString()}. Consider verifying price accuracy.`,
+        });
+      }
+    }
+  }
+
+  // ============= STEP 4: EXPENSE SANITY CHECKS =============
+  const { estimated_monthly_rent } = raw;
+  
+  // Extract fees - CRITICAL: Ensure no double-counting
+  let hoa_fees_monthly = 0;
+  if (raw.hoa_fees && raw.hoa_fees > 0) {
+    // Check if HOA seems to be annual (unlikely to be >$1000/month for most properties)
+    if (raw.hoa_fees > 2000) {
+      // Likely annual - convert to monthly
+      hoa_fees_monthly = Math.round(raw.hoa_fees / 12);
+      validation_warnings.push({
+        type: 'expense_anomaly',
+        severity: 'info',
+        message: 'HOA fees converted from annual to monthly',
+        details: `Original: $${raw.hoa_fees}, Converted: $${hoa_fees_monthly}/month`,
+      });
+    } else {
+      hoa_fees_monthly = raw.hoa_fees;
+    }
+  }
+
+  // Property taxes - CRITICAL: Must be annual, convert if seems monthly
+  let property_taxes_annual = 0;
+  if (raw.property_taxes_annual && raw.property_taxes_annual > 0) {
+    // If taxes seem too low to be annual, they might be monthly
+    if (raw.property_taxes_annual < 500 && finalPrice > 100000) {
+      // Likely monthly - convert to annual
+      property_taxes_annual = raw.property_taxes_annual * 12;
+      validation_warnings.push({
+        type: 'expense_anomaly',
+        severity: 'warning',
+        message: 'Property taxes appear to be monthly - converted to annual',
+        details: `Original: $${raw.property_taxes_annual}, Converted: $${property_taxes_annual}/year`,
+      });
+    } else {
+      property_taxes_annual = raw.property_taxes_annual;
+    }
+  } else {
+    // Default: 1.5% of property value annually
+    property_taxes_annual = Math.round(finalPrice * 0.015);
+  }
+
+  // Insurance - same check
+  let insurance_annual = 0;
+  if (raw.insurance_annual && raw.insurance_annual > 0) {
+    if (raw.insurance_annual < 100 && finalPrice > 100000) {
+      // Likely monthly
+      insurance_annual = raw.insurance_annual * 12;
+    } else {
+      insurance_annual = raw.insurance_annual;
+    }
+  } else {
+    // Default: 0.5% of property value annually
+    insurance_annual = Math.round(finalPrice * 0.005);
+  }
+
+  // ============= STEP 5: CALCULATE OpEx (NO DOUBLE COUNTING) =============
   const annualRent = estimated_monthly_rent * 12;
   
   // OpEx breakdown using industry standards
   const property_management = Math.round(estimated_monthly_rent * 0.10); // 10% of rent
   const vacancy = Math.round(estimated_monthly_rent * 0.06); // 6% vacancy factor
   const maintenance = Math.round(estimated_monthly_rent * 0.05); // 5% maintenance
-  const insurance = insurance_annual ? Math.round(insurance_annual / 12) : Math.round(purchase_price * 0.005 / 12); // 0.5% of value annually
-  const property_taxes = property_taxes_annual ? Math.round(property_taxes_annual / 12) : Math.round(purchase_price * 0.015 / 12); // 1.5% default
-  const hoa = hoa_fees || 0;
+  const insurance = Math.round(insurance_annual / 12);
+  const property_taxes = Math.round(property_taxes_annual / 12);
   
   const opex_breakdown = {
     property_management,
@@ -63,23 +197,59 @@ function calculateDeterministicMetrics(raw: RawExtractedData): CalculatedMetrics
     maintenance,
     insurance,
     property_taxes,
-    hoa_fees: hoa,
+    hoa_fees: hoa_fees_monthly,
   };
   
-  const operating_expenses = property_management + vacancy + maintenance + insurance + property_taxes + hoa;
+  const operating_expenses = property_management + vacancy + maintenance + insurance + property_taxes + hoa_fees_monthly;
   const annual_opex = operating_expenses * 12;
+
+  // ============= EXPENSE RATIO CHECK =============
+  const expenseRatio = operating_expenses / estimated_monthly_rent;
+  let expense_warning: string | undefined;
+  let roiKiller: string | undefined;
   
-  // Core financial metrics - deterministic formulas
+  if (expenseRatio > 0.6) {
+    // Find the biggest expense contributor
+    const expenseItems = [
+      { name: 'HOA Fees', value: hoa_fees_monthly, percent: (hoa_fees_monthly / operating_expenses) * 100 },
+      { name: 'Property Taxes', value: property_taxes, percent: (property_taxes / operating_expenses) * 100 },
+      { name: 'Insurance', value: insurance, percent: (insurance / operating_expenses) * 100 },
+      { name: 'Property Management', value: property_management, percent: (property_management / operating_expenses) * 100 },
+      { name: 'Vacancy', value: vacancy, percent: (vacancy / operating_expenses) * 100 },
+      { name: 'Maintenance', value: maintenance, percent: (maintenance / operating_expenses) * 100 },
+    ].sort((a, b) => b.value - a.value);
+    
+    const topExpense = expenseItems[0];
+    roiKiller = topExpense.name;
+    expense_warning = `${topExpense.name} ($${topExpense.value}/mo) accounts for ${topExpense.percent.toFixed(0)}% of expenses and is severely impacting ROI`;
+    
+    validation_warnings.push({
+      type: 'expense_anomaly',
+      severity: 'critical',
+      message: `Operating expenses consume ${(expenseRatio * 100).toFixed(0)}% of rental income`,
+      details: expense_warning,
+      affected_metric: roiKiller,
+    });
+  } else if (expenseRatio > 0.5) {
+    validation_warnings.push({
+      type: 'expense_anomaly',
+      severity: 'warning',
+      message: `Operating expenses consume ${(expenseRatio * 100).toFixed(0)}% of rental income`,
+      details: 'This is above the typical 40-50% range. Review individual expense items.',
+    });
+  }
+  
+  // ============= STEP 6: CORE FINANCIAL METRICS =============
   const net_operating_income_annual = annualRent - annual_opex;
-  const cap_rate = purchase_price > 0 ? Number(((net_operating_income_annual / purchase_price) * 100).toFixed(2)) : 0;
-  const one_percent_rule = purchase_price > 0 ? Number(((estimated_monthly_rent / purchase_price) * 100).toFixed(2)) : 0;
-  const gross_rent_multiplier = annualRent > 0 ? Number((purchase_price / annualRent).toFixed(2)) : 0;
+  const cap_rate = finalPrice > 0 ? Number(((net_operating_income_annual / finalPrice) * 100).toFixed(2)) : 0;
+  const one_percent_rule = finalPrice > 0 ? Number(((estimated_monthly_rent / finalPrice) * 100).toFixed(2)) : 0;
+  const gross_rent_multiplier = annualRent > 0 ? Number((finalPrice / annualRent).toFixed(2)) : 0;
   
   // Cash on Cash calculation (assuming 20% down, 7% interest, 30yr mortgage)
-  const downPayment = purchase_price * 0.20;
-  const closingCosts = purchase_price * 0.03;
+  const downPayment = finalPrice * 0.20;
+  const closingCosts = finalPrice * 0.03;
   const totalCashInvested = downPayment + closingCosts;
-  const loanAmount = purchase_price * 0.80;
+  const loanAmount = finalPrice * 0.80;
   const monthlyRate = 0.07 / 12;
   const totalPayments = 360;
   const monthlyMortgage = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, totalPayments)) / 
@@ -90,9 +260,44 @@ function calculateDeterministicMetrics(raw: RawExtractedData): CalculatedMetrics
   
   // Debt Service Coverage Ratio
   const debt_service_coverage = annualDebtService > 0 ? Number((net_operating_income_annual / annualDebtService).toFixed(2)) : 0;
+
+  // ============= NEGATIVE CASHFLOW WARNINGS =============
+  if (cap_rate < 0) {
+    validation_warnings.push({
+      type: 'negative_cashflow',
+      severity: 'critical',
+      message: `NEGATIVE Cap Rate: ${cap_rate}%`,
+      details: expense_warning || 'Operating expenses exceed rental income. This property LOSES MONEY before mortgage payments.',
+      affected_metric: roiKiller,
+    });
+  } else if (cap_rate < 4) {
+    validation_warnings.push({
+      type: 'negative_cashflow',
+      severity: 'warning',
+      message: `Low Cap Rate: ${cap_rate}%`,
+      details: 'Cap rate below 4% indicates poor cashflow potential.',
+    });
+  }
+
+  if (cash_on_cash_return < 0) {
+    validation_warnings.push({
+      type: 'negative_cashflow',
+      severity: 'critical',
+      message: `NEGATIVE Cash-on-Cash: ${cash_on_cash_return}%`,
+      details: expense_warning || 'After mortgage payments, this property will DRAIN your cash monthly.',
+      affected_metric: roiKiller,
+    });
+  } else if (cash_on_cash_return < 5) {
+    validation_warnings.push({
+      type: 'negative_cashflow',
+      severity: 'warning',
+      message: `Low Cash-on-Cash: ${cash_on_cash_return}%`,
+      details: 'Consider if this return justifies the investment risk.',
+    });
+  }
   
   // Rehab estimate based on description hints
-  let rehab_estimate = 5000; // Base minimum
+  let rehab_estimate = 5000;
   if (raw.description_hints) {
     const hints = raw.description_hints.join(' ').toLowerCase();
     if (hints.includes('original') || hints.includes('vintage') || hints.includes('investor special')) {
@@ -104,7 +309,7 @@ function calculateDeterministicMetrics(raw: RawExtractedData): CalculatedMetrics
     } else if (hints.includes('new construction') || hints.includes('move-in ready') || hints.includes('turnkey')) {
       rehab_estimate = 2000;
     } else {
-      rehab_estimate = 15000; // Default moderate
+      rehab_estimate = 15000;
     }
   }
   
@@ -118,13 +323,16 @@ function calculateDeterministicMetrics(raw: RawExtractedData): CalculatedMetrics
     gross_rent_multiplier,
     debt_service_coverage,
     rehab_estimate,
+    price_confidence_score: priceConfidenceScore,
+    price_source: priceSource,
+    validation_warnings,
+    expense_warning,
   };
 }
 
 // Generate hash for cache key
 function generateInputHash(url: string, purchasePrice?: number, monthlyRent?: number): string {
   const input = `${url}|${purchasePrice || 'auto'}|${monthlyRent || 'auto'}`;
-  // Simple hash function
   let hash = 0;
   for (let i = 0; i < input.length; i++) {
     const char = input.charCodeAt(i);
@@ -185,7 +393,7 @@ serve(async (req) => {
     const { url, address, purchasePrice, monthlyRent, language, mode, userId, teamId, forceRefresh } = await req.json();
     
     const inputSource = url || address;
-    console.log('Deep Scan analysis:', { inputSource, mode, language, forceRefresh });
+    console.log('Deep Scan analysis:', { inputSource, mode, language, forceRefresh, userPrice: purchasePrice });
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
@@ -195,7 +403,6 @@ serve(async (req) => {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    // Initialize Supabase client for cache operations
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
     
     // ============= STEP 1: CHECK CACHE =============
@@ -230,11 +437,13 @@ serve(async (req) => {
     const targetLang = languageNames[language] || 'English';
 
     // ============= STEP 2: AI EXTRACTS RAW DATA ONLY =============
-    // The AI's job is ONLY to extract data, NOT to calculate metrics
     const systemPrompt = `You are PropWealth AI Data Extractor. Your ONLY job is to extract raw property data from listings.
 
-CRITICAL: You must extract RAW VALUES ONLY. Do NOT calculate any financial metrics.
-The backend system will calculate all metrics (Cap Rate, NOI, etc.) using deterministic formulas.
+CRITICAL RULES:
+1. You must extract RAW VALUES ONLY. Do NOT calculate any financial metrics.
+2. The backend system will calculate all metrics (Cap Rate, NOI, etc.) using deterministic formulas.
+3. ALWAYS extract the PRIMARY LISTING PRICE - NEVER generate or estimate a "market value".
+4. CRITICAL: Detect ownership type (Fee Simple, Leasehold, Land Lease, Co-op) - this affects all valuations.
 
 JURISDICTION: ${jurisdiction.code}
 CURRENCY: ${jurisdiction.currency}
@@ -243,18 +452,20 @@ Return a JSON object with this EXACT structure:
 {
   "property_id": "string (UUID)",
   "raw_data": {
-    "purchase_price": number,
+    "purchase_price": number (MUST be the ACTUAL listing price from the source, NOT an estimate),
+    "listing_price": number (the exact listing price shown on the page - REQUIRED),
     "estimated_monthly_rent": number,
-    "hoa_fees": number or null,
-    "property_taxes_annual": number or null,
-    "insurance_annual": number or null,
+    "hoa_fees": number or null (MONTHLY amount only),
+    "property_taxes_annual": number or null (ANNUAL amount only - do NOT duplicate with HOA),
+    "insurance_annual": number or null (ANNUAL amount only),
+    "ownership_type": "fee_simple" | "leasehold" | "land_lease" | "coop" (CRITICAL - detect from listing),
     "property_type": "apartment" | "house" | "commercial" | "land",
     "location_quality": "prime" | "good" | "average" | "developing",
     "beds": number or null,
     "baths": number or null,
     "sqft": number or null,
     "year_built": number or null,
-    "description_hints": ["array of keywords from listing: 'original', 'renovated', 'needs TLC', etc."]
+    "description_hints": ["array of keywords from listing: 'original', 'renovated', 'needs TLC', 'leasehold', etc."]
   },
   "ai_analysis": {
     "verdict": "BUY" | "NEGOTIATE" | "AVOID",
@@ -288,12 +499,24 @@ Return a JSON object with this EXACT structure:
   ]
 }
 
-MARKET COMPARABLES RULES (for deterministic results):
+EXPENSE EXTRACTION RULES (CRITICAL - NO DOUBLE COUNTING):
+- hoa_fees: MONTHLY amount only. If listed as annual, divide by 12.
+- property_taxes_annual: ANNUAL amount only. Do NOT include HOA here.
+- insurance_annual: ANNUAL amount only. Do NOT include in taxes.
+- If you see "monthly expenses" that include multiple items, SEPARATE them correctly.
+
+OWNERSHIP TYPE DETECTION (CRITICAL):
+- Look for: "Leasehold", "Land Lease", "Ground Lease", "Co-op", "Cooperative"
+- If NOT explicitly stated, default to "fee_simple"
+- Leasehold properties have DRASTICALLY different valuations - flag this!
+
+MARKET COMPARABLES RULES:
 1. Always return EXACTLY 3 comparables
 2. Sort by: most recently sold first
 3. Limit search radius to 0.5 miles
 4. Select properties with SIMILAR square footage (+/- 20%)
 5. Use the SAME selection criteria every time
+6. CRITICAL: If property is Leasehold, ONLY use Leasehold comparables!
 
 ALL text content must be in ${targetLang}.
 TAX FRAMEWORK: ${jurisdiction.taxInfo}`;
@@ -302,14 +525,15 @@ TAX FRAMEWORK: ${jurisdiction.taxInfo}`;
       `EXTRACT DATA from this property listing:
 
 URL: ${url}
-${purchasePrice ? `User Override Price: ${purchasePrice}` : ''}
+${purchasePrice ? `User Override Price: ${purchasePrice} (USE THIS EXACT VALUE for purchase_price)` : 'EXTRACT the actual listing price - do NOT estimate market value'}
 ${monthlyRent ? `User Override Rent: ${monthlyRent}` : ''}
 
-INSTRUCTIONS:
-1. Extract raw property data from the URL
-2. If values not found, estimate based on ${jurisdiction.code} market averages
-3. DO NOT calculate financial metrics - just extract raw data
-4. Return valid JSON only` :
+CRITICAL INSTRUCTIONS:
+1. Extract the ACTUAL LISTING PRICE from the page (put in "listing_price")
+2. ${purchasePrice ? `Use ${purchasePrice} for purchase_price since user provided it` : 'Use the listing price for purchase_price - NEVER use AI estimates'}
+3. Detect ownership type (Fee Simple vs Leasehold)
+4. Extract expenses WITHOUT double-counting (HOA is separate from taxes!)
+5. Return valid JSON only` :
       `EXTRACT DATA for this property:
 
 Property: ${address}
@@ -332,7 +556,7 @@ Return valid JSON only.`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0, // CRITICAL: Ensures deterministic output
+        temperature: 0,
         response_format: { type: 'json_object' },
       }),
     });
@@ -379,9 +603,12 @@ Return valid JSON only.`;
       }
     }
 
-    // ============= STEP 3: CALCULATE METRICS DETERMINISTICALLY =============
+    // ============= STEP 3: PREPARE RAW DATA WITH VALIDATION =============
+    const aiExtractedPrice = extractedData.raw_data?.purchase_price || extractedData.raw_data?.listing_price || 0;
+    
     const rawData: RawExtractedData = {
-      purchase_price: purchasePrice || extractedData.raw_data?.purchase_price || 0,
+      purchase_price: purchasePrice || extractedData.raw_data?.listing_price || aiExtractedPrice,
+      listing_price: extractedData.raw_data?.listing_price || aiExtractedPrice,
       estimated_monthly_rent: monthlyRent || extractedData.raw_data?.estimated_monthly_rent || 0,
       hoa_fees: extractedData.raw_data?.hoa_fees || 0,
       property_taxes_annual: extractedData.raw_data?.property_taxes_annual,
@@ -393,17 +620,36 @@ Return valid JSON only.`;
       sqft: extractedData.raw_data?.sqft,
       year_built: extractedData.raw_data?.year_built,
       description_hints: extractedData.raw_data?.description_hints || [],
+      ownership_type: extractedData.raw_data?.ownership_type || 'fee_simple',
     };
 
-    console.log('Calculating metrics deterministically...');
-    const calculatedMetrics = calculateDeterministicMetrics(rawData);
+    console.log('Calculating metrics with validation...', {
+      userPrice: purchasePrice,
+      aiPrice: aiExtractedPrice,
+      listingPrice: rawData.listing_price,
+      ownershipType: rawData.ownership_type,
+    });
+    
+    const calculatedMetrics = calculateDeterministicMetrics(
+      rawData, 
+      purchasePrice, 
+      aiExtractedPrice,
+      extractedData.market_comparables
+    );
 
-    // Calculate suggested offer price (90% of asking if metrics are weak)
-    const suggestedOfferPrice = calculatedMetrics.cap_rate < 5 || calculatedMetrics.cash_on_cash_return < 8
-      ? Math.round(rawData.purchase_price * 0.90)
-      : Math.round(rawData.purchase_price * 0.95);
+    console.log('Validation warnings:', calculatedMetrics.validation_warnings);
 
-    // Build final response with calculated metrics
+    // Calculate suggested offer price (more aggressive if validation warnings exist)
+    let suggestedOfferPrice = rawData.purchase_price;
+    if (calculatedMetrics.validation_warnings.some(w => w.severity === 'critical')) {
+      suggestedOfferPrice = Math.round(rawData.purchase_price * 0.85); // 15% off for critical issues
+    } else if (calculatedMetrics.cap_rate < 5 || calculatedMetrics.cash_on_cash_return < 8) {
+      suggestedOfferPrice = Math.round(rawData.purchase_price * 0.90);
+    } else {
+      suggestedOfferPrice = Math.round(rawData.purchase_price * 0.95);
+    }
+
+    // Build final response
     const finalResult = {
       property_id: extractedData.property_id || crypto.randomUUID(),
       metadata: {
@@ -412,12 +658,20 @@ Return valid JSON only.`;
         currency_code: jurisdiction.currency,
         property_type: rawData.property_type || 'house',
         location_quality: rawData.location_quality || 'average',
+        ownership_type: rawData.ownership_type || 'fee_simple',
       },
       financials: {
         purchase_price: rawData.purchase_price,
+        listing_price: rawData.listing_price,
         estimated_monthly_rent: rawData.estimated_monthly_rent,
         ...calculatedMetrics,
         suggested_offer_price: suggestedOfferPrice,
+      },
+      raw_property_data: {
+        beds: rawData.beds,
+        baths: rawData.baths,
+        sqft: rawData.sqft,
+        year_built: rawData.year_built,
       },
       ai_analysis: extractedData.ai_analysis || {
         verdict: 'NEGOTIATE',
@@ -447,7 +701,7 @@ Return valid JSON only.`;
           raw_extracted_data: rawData,
           calculated_metrics: calculatedMetrics,
           last_updated: new Date().toISOString(),
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours
+          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
         }, {
           onConflict: 'property_url',
         });

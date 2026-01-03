@@ -23,7 +23,10 @@ import {
   PlusCircle,
   Check,
   RefreshCw,
-  Database
+  Database,
+  ShieldAlert,
+  Info,
+  Home
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -32,12 +35,14 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { DeepScanResult, jurisdictionInfo, formatCurrency } from '@/types/deepScan';
+import { DeepScanResult, jurisdictionInfo, formatCurrency, ValidationWarning } from '@/types/deepScan';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import OpExBreakdown from '@/components/analyzer/OpExBreakdown';
 import MarketComparables from '@/components/analyzer/MarketComparables';
 import FiveYearProjection from '@/components/analyzer/FiveYearProjection';
 import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
 interface AnalysisResultWithCache extends DeepScanResult {
   cached?: boolean;
@@ -157,6 +162,31 @@ const Analyzer = () => {
   };
 
   const currency = results?.metadata?.currency_code || 'USD';
+  const validationWarnings = results?.financials?.validation_warnings || [];
+  const criticalWarnings = validationWarnings.filter(w => w.severity === 'critical');
+  const otherWarnings = validationWarnings.filter(w => w.severity !== 'critical');
+  const hasNegativeMetrics = (results?.financials?.cap_rate || 0) < 0 || (results?.financials?.cash_on_cash_return || 0) < 0;
+  const expenseWarning = results?.financials?.expense_warning;
+  const priceConfidence = results?.financials?.price_confidence_score ?? 100;
+  const priceSource = results?.financials?.price_source || 'ai_estimated';
+  const ownershipType = results?.metadata?.ownership_type || 'fee_simple';
+  const isLeasehold = ownershipType !== 'fee_simple';
+
+  const getSeverityColor = (severity: string) => {
+    switch (severity) {
+      case 'critical': return 'bg-destructive/20 text-destructive border-destructive';
+      case 'warning': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500';
+      default: return 'bg-blue-500/20 text-blue-400 border-blue-500';
+    }
+  };
+
+  const getSeverityIcon = (severity: string) => {
+    switch (severity) {
+      case 'critical': return <XCircle className="w-4 h-4" />;
+      case 'warning': return <AlertTriangle className="w-4 h-4" />;
+      default: return <Info className="w-4 h-4" />;
+    }
+  };
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -367,6 +397,58 @@ const Analyzer = () => {
                 </div>
               )}
 
+              {/* Critical Validation Warnings */}
+              {criticalWarnings.length > 0 && (
+                <div className="space-y-2">
+                  {criticalWarnings.map((warning, index) => (
+                    <Alert key={index} variant="destructive" className="bg-destructive/10 border-destructive/50">
+                      <ShieldAlert className="h-4 w-4" />
+                      <AlertTitle className="flex items-center gap-2">
+                        {warning.message}
+                        {warning.affected_metric && (
+                          <Badge variant="outline" className="text-xs border-destructive/50">
+                            {warning.affected_metric}
+                          </Badge>
+                        )}
+                      </AlertTitle>
+                      <AlertDescription className="text-destructive/80 text-sm mt-1">
+                        {warning.details}
+                      </AlertDescription>
+                    </Alert>
+                  ))}
+                </div>
+              )}
+
+              {/* Leasehold Warning Banner */}
+              {isLeasehold && (
+                <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/30 flex items-start gap-3">
+                  <Home className="w-5 h-5 text-orange-400 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-medium text-orange-400">
+                      {ownershipType.toUpperCase()} Property Detected
+                    </p>
+                    <p className="text-sm text-orange-400/80 mt-1">
+                      This is NOT Fee Simple ownership. Valuation metrics differ significantly. Ground rent and lease terms should be factored into your decision.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Price Confidence Score */}
+              {priceConfidence < 75 && (
+                <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/30 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-yellow-400" />
+                    <span className="text-sm text-yellow-400">
+                      Price Confidence: {priceConfidence}%
+                    </span>
+                  </div>
+                  <Badge variant="outline" className="text-xs border-yellow-500/30 text-yellow-400">
+                    {priceSource === 'user_input' ? 'User Input' : priceSource === 'listing_price' ? 'Listing Price' : 'AI Estimated'}
+                  </Badge>
+                </div>
+              )}
+
               {/* Jurisdiction & Verdict Header */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -388,24 +470,72 @@ const Analyzer = () => {
                 </div>
               </div>
 
-              {/* Verdict Badge */}
+              {/* Verdict Badge - More prominent for negative metrics */}
               <div className={cn(
-                "p-6 rounded-xl border text-center",
-                verdictStyles[results.ai_analysis?.verdict || 'BUY']
+                "p-6 rounded-xl border text-center relative overflow-hidden",
+                hasNegativeMetrics ? "bg-destructive/30 border-destructive animate-pulse" : verdictStyles[results.ai_analysis?.verdict || 'BUY']
               )}>
-                <div className="flex items-center justify-center gap-3 mb-2">
-                  {verdictIcons[results.ai_analysis?.verdict || 'BUY']}
-                  <span className="text-3xl font-bold">
-                    {results.ai_analysis?.verdict}
-                  </span>
-                </div>
-                <div className="flex items-center justify-center gap-2">
-                  <BadgeCheck className="w-4 h-4" />
-                  <span className="text-sm">
-                    {t('analyzer.confidence') || 'Confidence'}: {results.ai_analysis?.confidence || 0}%
-                  </span>
+                {hasNegativeMetrics && (
+                  <div className="absolute inset-0 bg-gradient-to-r from-destructive/20 via-transparent to-destructive/20" />
+                )}
+                <div className="relative z-10">
+                  <div className="flex items-center justify-center gap-3 mb-2">
+                    {hasNegativeMetrics ? (
+                      <XCircle className="w-10 h-10 text-destructive animate-pulse" />
+                    ) : (
+                      verdictIcons[results.ai_analysis?.verdict || 'BUY']
+                    )}
+                    <span className={cn("text-3xl font-bold", hasNegativeMetrics && "text-destructive")}>
+                      {hasNegativeMetrics ? 'AVOID' : results.ai_analysis?.verdict}
+                    </span>
+                  </div>
+                  {hasNegativeMetrics && expenseWarning && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <p className="text-sm text-destructive/80 mt-2 cursor-help underline decoration-dashed">
+                            ⚠️ Negative ROI - Hover for details
+                          </p>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-sm bg-popover border-border">
+                          <p className="text-sm">{expenseWarning}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  {!hasNegativeMetrics && (
+                    <div className="flex items-center justify-center gap-2">
+                      <BadgeCheck className="w-4 h-4" />
+                      <span className="text-sm">
+                        {t('analyzer.confidence') || 'Confidence'}: {results.ai_analysis?.confidence || 0}%
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
+
+              {/* Other Warnings (non-critical) */}
+              {otherWarnings.length > 0 && (
+                <div className="space-y-2">
+                  {otherWarnings.map((warning, index) => (
+                    <div 
+                      key={index} 
+                      className={cn(
+                        "p-3 rounded-lg border flex items-start gap-2",
+                        getSeverityColor(warning.severity)
+                      )}
+                    >
+                      {getSeverityIcon(warning.severity)}
+                      <div className="flex-1">
+                        <p className="text-sm font-medium">{warning.message}</p>
+                        {warning.details && (
+                          <p className="text-xs opacity-80 mt-0.5">{warning.details}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Financial Metrics Grid */}
               <div className="grid grid-cols-2 gap-3">
@@ -413,43 +543,81 @@ const Analyzer = () => {
                   { 
                     label: t('analyzer.capRate') || 'Cap Rate', 
                     value: `${results.financials?.cap_rate?.toFixed(2) || 0}%`, 
+                    rawValue: results.financials?.cap_rate || 0,
                     icon: TrendingUp,
-                    highlight: (results.financials?.cap_rate || 0) >= 8
+                    highlight: (results.financials?.cap_rate || 0) >= 8,
+                    isNegative: (results.financials?.cap_rate || 0) < 0,
+                    tooltip: (results.financials?.cap_rate || 0) < 0 ? expenseWarning : undefined
                   },
                   { 
                     label: t('analyzer.cashOnCash') || 'Cash on Cash', 
                     value: `${results.financials?.cash_on_cash_return?.toFixed(2) || 0}%`, 
+                    rawValue: results.financials?.cash_on_cash_return || 0,
                     icon: DollarSign,
-                    highlight: (results.financials?.cash_on_cash_return || 0) >= 10
+                    highlight: (results.financials?.cash_on_cash_return || 0) >= 10,
+                    isNegative: (results.financials?.cash_on_cash_return || 0) < 0,
+                    tooltip: (results.financials?.cash_on_cash_return || 0) < 0 ? expenseWarning : undefined
                   },
                   { 
                     label: t('analyzer.annualNOI') || 'Annual NOI', 
                     value: formatCurrency(results.financials?.net_operating_income_annual || 0, currency), 
+                    rawValue: results.financials?.net_operating_income_annual || 0,
                     icon: Calculator,
-                    highlight: false
+                    highlight: false,
+                    isNegative: (results.financials?.net_operating_income_annual || 0) < 0,
+                    tooltip: (results.financials?.net_operating_income_annual || 0) < 0 ? 'Operating expenses exceed rental income' : undefined
                   },
                   { 
                     label: t('analyzer.onePercentRule') || '1% Rule', 
                     value: `${results.financials?.one_percent_rule?.toFixed(2) || 0}%`, 
+                    rawValue: results.financials?.one_percent_rule || 0,
                     icon: Target,
-                    highlight: (results.financials?.one_percent_rule || 0) >= 1
+                    highlight: (results.financials?.one_percent_rule || 0) >= 1,
+                    isNegative: false,
+                    tooltip: undefined
                   },
                 ].map((metric, index) => (
-                  <div
-                    key={index}
-                    className={cn(
-                      "p-4 rounded-lg",
-                      metric.highlight ? "bg-primary/10 border border-primary/30" : "bg-secondary/50"
-                    )}
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <metric.icon className={cn("w-4 h-4", metric.highlight ? "text-primary" : "text-muted-foreground")} />
-                      <span className="text-sm text-muted-foreground">{metric.label}</span>
-                    </div>
-                    <p className={cn("text-xl font-bold", metric.highlight ? "text-primary" : "text-foreground")}>
-                      {metric.value}
-                    </p>
-                  </div>
+                  <TooltipProvider key={index}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div
+                          className={cn(
+                            "p-4 rounded-lg cursor-help transition-all",
+                            metric.isNegative 
+                              ? "bg-destructive/20 border-2 border-destructive animate-pulse" 
+                              : metric.highlight 
+                                ? "bg-primary/10 border border-primary/30" 
+                                : "bg-secondary/50"
+                          )}
+                        >
+                          <div className="flex items-center gap-2 mb-2">
+                            <metric.icon className={cn(
+                              "w-4 h-4", 
+                              metric.isNegative ? "text-destructive" : metric.highlight ? "text-primary" : "text-muted-foreground"
+                            )} />
+                            <span className={cn(
+                              "text-sm",
+                              metric.isNegative ? "text-destructive" : "text-muted-foreground"
+                            )}>
+                              {metric.label}
+                              {metric.isNegative && " ⚠️"}
+                            </span>
+                          </div>
+                          <p className={cn(
+                            "text-xl font-bold", 
+                            metric.isNegative ? "text-destructive" : metric.highlight ? "text-primary" : "text-foreground"
+                          )}>
+                            {metric.value}
+                          </p>
+                        </div>
+                      </TooltipTrigger>
+                      {metric.tooltip && (
+                        <TooltipContent side="bottom" className="max-w-xs bg-popover border-border">
+                          <p className="text-sm">{metric.tooltip}</p>
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </TooltipProvider>
                 ))}
               </div>
 
