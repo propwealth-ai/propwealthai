@@ -16,6 +16,7 @@ interface Profile {
   referred_by: string | null;
   plan_type: string;
   payment_status: string;
+  available_balance: number | null;
 }
 
 interface AuthContextType {
