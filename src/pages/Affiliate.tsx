@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
   Users, 
   DollarSign, 
@@ -8,7 +8,10 @@ import {
   CheckCircle2, 
   TrendingUp,
   Clock,
-  Award
+  Award,
+  Edit2,
+  Save,
+  X
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -19,6 +22,12 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from '@/components/ui/chart';
+import { AreaChart, Area, XAxis, YAxis, ResponsiveContainer } from 'recharts';
 
 interface Referral {
   id: string;
@@ -35,9 +44,12 @@ interface Referral {
 
 const Affiliate: React.FC = () => {
   const { t, isRTL } = useLanguage();
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [copied, setCopied] = useState(false);
+  const [isEditingCode, setIsEditingCode] = useState(false);
+  const [newReferralCode, setNewReferralCode] = useState('');
 
   // Check if user is an influencer
   const isInfluencer = profile?.is_influencer;
@@ -89,6 +101,104 @@ const Affiliate: React.FC = () => {
     },
     enabled: !!profile?.id && isInfluencer,
   });
+
+  // Generate monthly earnings data from referrals
+  const monthlyEarningsData = React.useMemo(() => {
+    if (!referrals) return [];
+    
+    const monthlyData: Record<string, number> = {};
+    const now = new Date();
+    
+    // Initialize last 6 months
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      monthlyData[key] = 0;
+    }
+    
+    // Aggregate earnings by month
+    referrals.forEach((ref) => {
+      if (ref.status === 'paid') {
+        const date = new Date(ref.created_at);
+        const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        if (key in monthlyData) {
+          monthlyData[key] += Number(ref.commission_amount);
+        }
+      }
+    });
+    
+    return Object.entries(monthlyData).map(([month, earnings]) => ({
+      month: new Date(month + '-01').toLocaleDateString(undefined, { month: 'short' }),
+      earnings,
+    }));
+  }, [referrals]);
+
+  // Update referral code mutation
+  const updateCodeMutation = useMutation({
+    mutationFn: async (newCode: string) => {
+      if (!profile?.id) throw new Error('No profile');
+      
+      // Check if code is already taken
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('referral_code', newCode)
+        .neq('id', profile.id)
+        .maybeSingle();
+      
+      if (existing) {
+        throw new Error('Code already taken');
+      }
+      
+      const { error } = await supabase
+        .from('profiles')
+        .update({ referral_code: newCode })
+        .eq('id', profile.id);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({
+        title: t('affiliate.codeUpdated'),
+        description: t('affiliate.codeUpdatedDesc'),
+      });
+      setIsEditingCode(false);
+      refreshProfile();
+      queryClient.invalidateQueries({ queryKey: ['affiliate-stats'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: t('common.error'),
+        description: error.message === 'Code already taken' 
+          ? t('affiliate.codeTaken') 
+          : t('affiliate.codeUpdateError'),
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleStartEditCode = () => {
+    setNewReferralCode(referralCode || '');
+    setIsEditingCode(true);
+  };
+
+  const handleSaveCode = () => {
+    const trimmedCode = newReferralCode.trim().toLowerCase().replace(/[^a-z0-9-_]/g, '');
+    if (trimmedCode.length < 3) {
+      toast({
+        title: t('common.error'),
+        description: t('affiliate.codeTooShort'),
+        variant: 'destructive',
+      });
+      return;
+    }
+    updateCodeMutation.mutate(trimmedCode);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingCode(false);
+    setNewReferralCode('');
+  };
 
   const referralLink = referralCode 
     ? `${window.location.origin}/auth?ref=${referralCode}` 
@@ -200,7 +310,7 @@ const Affiliate: React.FC = () => {
         </Card>
       </div>
 
-      {/* Referral Link */}
+      {/* Referral Link & Code */}
       <Card className="glass-card">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -208,7 +318,7 @@ const Affiliate: React.FC = () => {
             {t('affiliate.yourReferralLink')}
           </CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="flex gap-2">
             <Input 
               value={referralLink} 
@@ -227,9 +337,112 @@ const Affiliate: React.FC = () => {
               <span className="ml-2">{copied ? t('common.copied') : t('common.copy')}</span>
             </Button>
           </div>
-          <p className="text-sm text-muted-foreground mt-2">
-            {t('affiliate.referralCodeLabel')}: <span className="font-mono font-bold text-primary">{referralCode}</span>
-          </p>
+          
+          {/* Editable Referral Code */}
+          <div className="flex items-center gap-2 p-3 bg-secondary/50 rounded-lg">
+            <span className="text-sm text-muted-foreground">{t('affiliate.referralCodeLabel')}:</span>
+            {isEditingCode ? (
+              <>
+                <Input
+                  value={newReferralCode}
+                  onChange={(e) => setNewReferralCode(e.target.value.toLowerCase())}
+                  placeholder={t('affiliate.enterNewCode')}
+                  className="input-executive max-w-[200px] font-mono"
+                  disabled={updateCodeMutation.isPending}
+                />
+                <Button
+                  size="sm"
+                  onClick={handleSaveCode}
+                  disabled={updateCodeMutation.isPending}
+                  className="btn-premium"
+                >
+                  <Save className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleCancelEdit}
+                  disabled={updateCodeMutation.isPending}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </>
+            ) : (
+              <>
+                <span className="font-mono font-bold text-primary">{referralCode}</span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleStartEditCode}
+                  className="ml-auto"
+                >
+                  <Edit2 className="w-4 h-4 mr-1" />
+                  {t('affiliate.editCode')}
+                </Button>
+              </>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Monthly Earnings Chart */}
+      <Card className="glass-card">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-primary" />
+            {t('affiliate.monthlyEarnings')}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {monthlyEarningsData.length > 0 ? (
+            <ChartContainer
+              config={{
+                earnings: {
+                  label: t('affiliate.earnings'),
+                  color: 'hsl(var(--primary))',
+                },
+              }}
+              className="h-[250px] w-full"
+            >
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={monthlyEarningsData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="earningsGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis 
+                    dataKey="month" 
+                    stroke="hsl(var(--muted-foreground))" 
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                  />
+                  <YAxis 
+                    stroke="hsl(var(--muted-foreground))" 
+                    fontSize={12}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(value) => `$${value}`}
+                  />
+                  <ChartTooltip content={<ChartTooltipContent />} />
+                  <Area
+                    type="monotone"
+                    dataKey="earnings"
+                    stroke="hsl(var(--primary))"
+                    strokeWidth={2}
+                    fill="url(#earningsGradient)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <TrendingUp className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>{t('affiliate.noEarningsData')}</p>
+            </div>
+          )}
         </CardContent>
       </Card>
 
