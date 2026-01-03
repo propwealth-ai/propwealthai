@@ -454,19 +454,31 @@ YOU MUST ONLY EXTRACT DATA FOR THIS SPECIFIC UNIT.
 - The List Price MUST be for unit ${targetUnit} ONLY
 - If you see multiple prices, use ONLY the one in the main listing header for ${targetUnit}` : 'Extract data for the primary listing only.'}
 
-=== CSS SELECTOR PRIORITY EXTRACTION (CRITICAL) ===
-When extracting the listing price, follow this EXACT priority order:
-1. FIRST: Look for elements with data-testid="price" or class containing "price" in the MAIN listing card
-2. SECOND: Look for the LARGEST/BOLDEST dollar amount near the top of the listing (this is the List Price)
-3. THIRD: If you see BOTH "Zestimate" (market estimate) AND "List Price" (asking price), ALWAYS use the LOWER value labeled as "Price" or "List Price"
-4. NEVER use "Zestimate", "Estimated Value", or "Home Value" as the listing_price
+=== PRICE EXTRACTION - ABSOLUTE PRIORITY ORDER (MANDATORY) ===
+YOU MUST FOLLOW THIS EXACT ORDER. NO EXCEPTIONS.
 
-=== SUSPICIOUS PRICE DETECTION ===
-If you extract a price > $400,000 but the property is described as:
-- "Studio" or "1 BR" or "1 Bath" in a Co-op/Coop building
-- Located in a building with cheaper units visible
-Then FLAG this as suspicious and RE-SCAN for a lower price in the main listing header.
-The correct price is almost always the LOWER number shown prominently.
+1. FIRST (MANDATORY): Find the element with attribute data-testid="price"
+   - This is THE ONLY valid source for the listing price
+   - Extract the dollar amount from this element EXACTLY as shown
+   - Example: <span data-testid="price">$139,000</span> → listing_price = 139000
+
+2. SECOND (if data-testid="price" missing): Find the FIRST large dollar amount in the main listing header
+   - This is typically in a <h1>, <h2>, or prominent <span> near the property title
+   - It is almost always the SMALLER of multiple prices shown
+
+3. ABSOLUTE REJECTION LIST - NEVER use these as listing_price:
+   - "Zestimate" or "Zestimate®" → This is an ESTIMATE, not the listing price
+   - "Home Value" or "Estimated Value" → This is an ESTIMATE
+   - "Price History" values → These are old prices
+   - Prices in "Similar Homes" or "Other Units" sections → Wrong unit
+   - ANY price labeled as "estimate", "predicted", or "market value"
+
+=== CO-OP PRICE SANITY CHECK ===
+Co-ops (Cooperative apartments) in Manhattan often sell for $100k-$200k despite high Zestimates.
+- If ownership_type = "coop" AND you found a price > $350,000
+- STOP and RE-SCAN for a lower price in the main header
+- Co-ops have LOW purchase prices but HIGH monthly fees (HOA $1500-$3000)
+- The lower price is ALWAYS correct for co-ops
 
 === CRITICAL RULES ===
 1. Extract RAW VALUES ONLY. Do NOT calculate any financial metrics.
@@ -534,12 +546,20 @@ Return a JSON object with this EXACT structure:
 }
 
 === RENT EXTRACTION RULES (CRITICAL - NEVER RETURN $0) ===
-If no rent is found, you MUST provide an estimate:
-1. First, search for "Rent Zestimate" or "Estimated Rent" text on the page
-2. If not found, calculate: rent = listing_price * 0.012 (1.2% rule for co-ops/cheap units)
-3. If you have comparables with rent data, use their average
-4. Set "is_rent_estimated": true when you estimate
-5. NEVER return estimated_monthly_rent as 0 - ALWAYS provide a value
+If no rent is found, you MUST provide an estimate using these priorities:
+
+1. FIRST: Search for "Rent Zestimate" or "Estimated Rent" text on the page
+2. SECOND: If sqft is available, calculate: rent = sqft * 2.50 ($/sqft method)
+3. THIRD: Calculate: rent = listing_price * 0.01 (1% rule - more conservative)
+4. FINAL STEP: Use the LOWER of methods 2 and 3 above
+
+Example: For a 650 sqft co-op at $139,000:
+- Method 2: 650 * 2.50 = $1,625/month
+- Method 3: 139000 * 0.01 = $1,390/month
+- Use: $1,390 (the lower value)
+
+Set "is_rent_estimated": true when you estimate
+NEVER return estimated_monthly_rent as 0 - ALWAYS provide a value
 
 === EXPENSE EXTRACTION RULES (NO DOUBLE COUNTING) ===
 - hoa_fees: MONTHLY amount only
@@ -672,8 +692,10 @@ Return valid JSON only.`;
     });
 
     // ============= RENT FALLBACK LOGIC (NEVER $0) =============
+    // NEW: Use 1% of price OR $2.50/sqft, whichever is LOWER
     let estimatedRent = monthlyRent || extractedData.raw_data?.estimated_monthly_rent || 0;
     let isRentEstimated = extractedData.raw_data?.is_rent_estimated || false;
+    const sqft = extractedData.raw_data?.sqft || 0;
     
     // Try rent zestimate first
     const rentZestimate = extractedData.raw_data?.rent_zestimate;
@@ -683,24 +705,19 @@ Return valid JSON only.`;
         isRentEstimated = true;
         console.log('Using Rent Zestimate:', rentZestimate);
       } else {
-        // Fallback: 1.2% of list price for cheap units/co-ops
-        estimatedRent = Math.round(finalPrice * 0.012);
+        // NEW FORMULA: Use the LOWER of 1% of price or $2.50/sqft
+        const onePercentRent = Math.round(finalPrice * 0.01);
+        const sqftRent = sqft > 0 ? Math.round(sqft * 2.50) : Infinity;
+        
+        estimatedRent = Math.min(onePercentRent, sqftRent === Infinity ? onePercentRent : sqftRent);
         isRentEstimated = true;
-        console.log('Rent fallback (1.2% rule):', estimatedRent);
         
-        // Alternative: Use comparable rents if available
-        const comparables = extractedData.market_comparables || [];
-        const compRents = comparables
-          .map((c: any) => c.estimated_rent || c.rent)
-          .filter((r: number) => typeof r === 'number' && r > 0);
-        
-        if (compRents.length >= 2) {
-          const avgCompRent = Math.round(compRents.reduce((a: number, b: number) => a + b, 0) / compRents.length);
-          if (avgCompRent > estimatedRent) {
-            estimatedRent = avgCompRent;
-            console.log('Using comparable average rent:', avgCompRent);
-          }
-        }
+        console.log('Rent fallback calculation:', {
+          onePercentRent,
+          sqftRent: sqft > 0 ? sqftRent : 'N/A (no sqft)',
+          finalRent: estimatedRent,
+          method: sqft > 0 && sqftRent < onePercentRent ? 'sqft_method' : 'one_percent'
+        });
       }
     }
 
