@@ -1,7 +1,8 @@
 import React from 'react';
-import { Building2, Mail, Twitter, Linkedin, Github } from 'lucide-react';
+import { Mail, Twitter, Linkedin, Github } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 
+const LOGO_URL = "https://ik.imagekit.io/PropWealthAI/PropWealth%20AI%20/logo%20ofial%20propwealth%202%20-%20Copia%20(1)%20-%20Copia.png?updatedAt=1767203215713";
 const Footer: React.FC = () => {
   const { t } = useLanguage();
   const currentYear = new Date().getFullYear();
@@ -40,9 +41,11 @@ const Footer: React.FC = () => {
           {/* Brand Column */}
           <div className="lg:col-span-2">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
-                <Building2 className="w-5 h-5 text-primary-foreground" />
-              </div>
+              <img 
+                src={LOGO_URL} 
+                alt="PropWealth AI Logo" 
+                className="w-10 h-10 rounded-xl object-contain"
+              />
               <div>
                 <h3 className="text-xl font-bold text-foreground">PropWealth</h3>
                 <p className="text-xs text-muted-foreground">AI Investment OS</p>

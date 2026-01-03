@@ -20,6 +20,7 @@ import { useRBAC, RolePermissions } from '@/hooks/useRBAC';
 import { useAdmin } from '@/hooks/useAdmin';
 import { cn } from '@/lib/utils';
 
+const LOGO_URL = "https://ik.imagekit.io/PropWealthAI/PropWealth%20AI%20/logo%20ofial%20propwealth%202%20-%20Copia%20(1)%20-%20Copia.png?updatedAt=1767203215713";
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
@@ -70,9 +71,11 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
       <div className="p-6 flex items-center justify-between border-b border-sidebar-border">
         {!collapsed && (
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center">
-              <Building2 className="w-5 h-5 text-primary-foreground" />
-            </div>
+            <img 
+              src={LOGO_URL} 
+              alt="PropWealth AI Logo" 
+              className="w-10 h-10 rounded-xl object-contain"
+            />
             <div>
               <h1 className="font-bold text-foreground text-lg">PropWealth</h1>
               <p className="text-xs text-muted-foreground">AI Investment OS</p>
@@ -80,9 +83,11 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
           </div>
         )}
         {collapsed && (
-          <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center mx-auto">
-            <Building2 className="w-5 h-5 text-primary-foreground" />
-          </div>
+          <img 
+            src={LOGO_URL} 
+            alt="PropWealth AI Logo" 
+            className="w-10 h-10 rounded-xl object-contain mx-auto"
+          />
         )}
       </div>
 
