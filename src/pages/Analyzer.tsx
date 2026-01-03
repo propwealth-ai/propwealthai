@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { 
   Brain, 
   Building2, 
@@ -62,6 +62,12 @@ const Analyzer = () => {
   const [mode, setMode] = useState<'quick' | 'deep_scan'>('deep_scan');
   const [savingToPortfolio, setSavingToPortfolio] = useState(false);
   const [savedToPortfolio, setSavedToPortfolio] = useState(false);
+  
+  // Manual override state for editable fields
+  const [editedPrice, setEditedPrice] = useState<number | null>(null);
+  const [editedRent, setEditedRent] = useState<number | null>(null);
+  const [isEditingPrice, setIsEditingPrice] = useState(false);
+  const [isEditingRent, setIsEditingRent] = useState(false);
 
   const handleAnalyze = async (forceRefresh = false) => {
     if (mode === 'deep_scan' && !url) {
@@ -102,6 +108,11 @@ const Analyzer = () => {
       }
 
       setResults(data as AnalysisResultWithCache);
+      // Reset manual overrides when new results come in
+      setEditedPrice(null);
+      setEditedRent(null);
+      setIsEditingPrice(false);
+      setIsEditingRent(false);
       
       if (data.cached) {
         toast.success(t('analyzer.cachedResult') || `Cached result (${data.cache_age_minutes} min ago)`);
@@ -161,14 +172,60 @@ const Analyzer = () => {
     AVOID: <XCircle className="w-8 h-8" />,
   };
 
+  // Get effective values (manual override or original)
+  const effectivePrice = editedPrice ?? results?.financials?.purchase_price ?? 0;
+  const effectiveRent = editedRent ?? results?.financials?.estimated_monthly_rent ?? 0;
+  
+  // Recalculate metrics when manual overrides are applied
+  const recalculatedMetrics = useMemo(() => {
+    if (!results?.financials || (editedPrice === null && editedRent === null)) {
+      return null;
+    }
+    
+    const price = effectivePrice;
+    const rent = effectiveRent;
+    const opex = results.financials.operating_expenses || 0;
+    
+    // Recalculate core metrics
+    const annualRent = rent * 12;
+    const annualOpex = opex * 12;
+    const noi = annualRent - annualOpex;
+    const capRate = price > 0 ? (noi / price) * 100 : 0;
+    const onePercentRule = price > 0 ? (rent / price) * 100 : 0;
+    
+    // Cash on Cash (assuming 20% down, 7% interest, 30yr)
+    const downPayment = price * 0.20;
+    const closingCosts = price * 0.03;
+    const totalCashInvested = downPayment + closingCosts;
+    const loanAmount = price * 0.80;
+    const monthlyRate = 0.07 / 12;
+    const totalPayments = 360;
+    const monthlyMortgage = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, totalPayments)) / 
+      (Math.pow(1 + monthlyRate, totalPayments) - 1);
+    const annualDebtService = monthlyMortgage * 12;
+    const annualCashFlow = noi - annualDebtService;
+    const cashOnCash = totalCashInvested > 0 ? (annualCashFlow / totalCashInvested) * 100 : 0;
+    
+    return {
+      cap_rate: Number(capRate.toFixed(2)),
+      cash_on_cash_return: Number(cashOnCash.toFixed(2)),
+      net_operating_income_annual: Math.round(noi),
+      one_percent_rule: Number(onePercentRule.toFixed(2)),
+      suggested_offer_price: Math.round(price * 0.95),
+    };
+  }, [results?.financials, editedPrice, editedRent, effectivePrice, effectiveRent]);
+
+  // Use recalculated or original values
+  const displayMetrics = recalculatedMetrics || results?.financials;
+
   const currency = results?.metadata?.currency_code || 'USD';
   const validationWarnings = results?.financials?.validation_warnings || [];
   const criticalWarnings = validationWarnings.filter(w => w.severity === 'critical');
   const otherWarnings = validationWarnings.filter(w => w.severity !== 'critical');
-  const hasNegativeMetrics = (results?.financials?.cap_rate || 0) < 0 || (results?.financials?.cash_on_cash_return || 0) < 0;
+  const hasNegativeMetrics = (displayMetrics?.cap_rate || 0) < 0 || (displayMetrics?.cash_on_cash_return || 0) < 0;
   const expenseWarning = results?.financials?.expense_warning;
   const priceConfidence = results?.financials?.price_confidence_score ?? 100;
-  const priceSource = results?.financials?.price_source || 'ai_estimated';
+  const priceSource = editedPrice !== null ? 'user_input' : (results?.financials?.price_source || 'ai_estimated');
   const ownershipType = results?.metadata?.ownership_type || 'fee_simple';
   const isLeasehold = ownershipType !== 'fee_simple';
 
@@ -542,37 +599,37 @@ const Analyzer = () => {
                 {[
                   { 
                     label: t('analyzer.capRate') || 'Cap Rate', 
-                    value: `${results.financials?.cap_rate?.toFixed(2) || 0}%`, 
-                    rawValue: results.financials?.cap_rate || 0,
+                    value: `${displayMetrics?.cap_rate?.toFixed(2) || 0}%`, 
+                    rawValue: displayMetrics?.cap_rate || 0,
                     icon: TrendingUp,
-                    highlight: (results.financials?.cap_rate || 0) >= 8,
-                    isNegative: (results.financials?.cap_rate || 0) < 0,
-                    tooltip: (results.financials?.cap_rate || 0) < 0 ? expenseWarning : undefined
+                    highlight: (displayMetrics?.cap_rate || 0) >= 8,
+                    isNegative: (displayMetrics?.cap_rate || 0) < 0,
+                    tooltip: (displayMetrics?.cap_rate || 0) < 0 ? expenseWarning : undefined
                   },
                   { 
                     label: t('analyzer.cashOnCash') || 'Cash on Cash', 
-                    value: `${results.financials?.cash_on_cash_return?.toFixed(2) || 0}%`, 
-                    rawValue: results.financials?.cash_on_cash_return || 0,
+                    value: `${displayMetrics?.cash_on_cash_return?.toFixed(2) || 0}%`, 
+                    rawValue: displayMetrics?.cash_on_cash_return || 0,
                     icon: DollarSign,
-                    highlight: (results.financials?.cash_on_cash_return || 0) >= 10,
-                    isNegative: (results.financials?.cash_on_cash_return || 0) < 0,
-                    tooltip: (results.financials?.cash_on_cash_return || 0) < 0 ? expenseWarning : undefined
+                    highlight: (displayMetrics?.cash_on_cash_return || 0) >= 10,
+                    isNegative: (displayMetrics?.cash_on_cash_return || 0) < 0,
+                    tooltip: (displayMetrics?.cash_on_cash_return || 0) < 0 ? expenseWarning : undefined
                   },
                   { 
                     label: t('analyzer.annualNOI') || 'Annual NOI', 
-                    value: formatCurrency(results.financials?.net_operating_income_annual || 0, currency), 
-                    rawValue: results.financials?.net_operating_income_annual || 0,
+                    value: formatCurrency(displayMetrics?.net_operating_income_annual || 0, currency), 
+                    rawValue: displayMetrics?.net_operating_income_annual || 0,
                     icon: Calculator,
                     highlight: false,
-                    isNegative: (results.financials?.net_operating_income_annual || 0) < 0,
-                    tooltip: (results.financials?.net_operating_income_annual || 0) < 0 ? 'Operating expenses exceed rental income' : undefined
+                    isNegative: (displayMetrics?.net_operating_income_annual || 0) < 0,
+                    tooltip: (displayMetrics?.net_operating_income_annual || 0) < 0 ? 'Operating expenses exceed rental income' : undefined
                   },
                   { 
                     label: t('analyzer.onePercentRule') || '1% Rule', 
-                    value: `${results.financials?.one_percent_rule?.toFixed(2) || 0}%`, 
-                    rawValue: results.financials?.one_percent_rule || 0,
+                    value: `${displayMetrics?.one_percent_rule?.toFixed(2) || 0}%`, 
+                    rawValue: displayMetrics?.one_percent_rule || 0,
                     icon: Target,
-                    highlight: (results.financials?.one_percent_rule || 0) >= 1,
+                    highlight: (displayMetrics?.one_percent_rule || 0) >= 1,
                     isNegative: false,
                     tooltip: undefined
                   },
@@ -620,37 +677,112 @@ const Analyzer = () => {
                   </TooltipProvider>
                 ))}
               </div>
+              
+              {/* Recalculation Notice */}
+              {recalculatedMetrics && (
+                <div className="p-3 rounded-lg bg-primary/10 border border-primary/30 flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 text-primary" />
+                  <span className="text-sm text-primary">
+                    Metrics recalculated with your manual overrides
+                  </span>
+                </div>
+              )}
 
               {/* OpEx Breakdown (Expandable) */}
               <OpExBreakdown
                 opexBreakdown={results.financials?.opex_breakdown}
                 totalOpex={results.financials?.operating_expenses || 0}
-                monthlyRent={results.financials?.estimated_monthly_rent || 0}
-                purchasePrice={results.financials?.purchase_price || 0}
+                monthlyRent={effectiveRent}
+                purchasePrice={effectivePrice}
                 currency={currency}
               />
 
-              {/* Price Info */}
-              <div className="p-4 bg-secondary/50 rounded-lg">
+              {/* Editable Price & Rent Info */}
+              <div className="p-4 bg-secondary/50 rounded-lg border border-border">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-xs text-muted-foreground uppercase tracking-wide">
+                    Click values to edit • Metrics update instantly
+                  </span>
+                  {(editedPrice !== null || editedRent !== null) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { setEditedPrice(null); setEditedRent(null); setIsEditingPrice(false); setIsEditingRent(false); }}
+                      className="text-xs text-muted-foreground hover:text-foreground h-6 px-2"
+                    >
+                      Reset to AI values
+                    </Button>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-4">
+                  {/* Editable Purchase Price */}
                   <div>
-                    <p className="text-sm text-muted-foreground">{t('analyzer.purchasePrice') || 'Purchase Price'}</p>
-                    <p className="text-lg font-bold text-foreground">
-                      {formatCurrency(results.financials?.purchase_price || 0, currency)}
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      {t('analyzer.purchasePrice') || 'Purchase Price'}
+                      {editedPrice !== null && <Badge variant="outline" className="text-xs ml-1 border-primary/50 text-primary">Edited</Badge>}
                     </p>
+                    {isEditingPrice ? (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-lg font-bold text-foreground">$</span>
+                        <Input
+                          type="number"
+                          autoFocus
+                          value={editedPrice ?? results.financials?.purchase_price ?? ''}
+                          onChange={(e) => setEditedPrice(e.target.value ? Number(e.target.value) : null)}
+                          onBlur={() => setIsEditingPrice(false)}
+                          onKeyDown={(e) => e.key === 'Enter' && setIsEditingPrice(false)}
+                          className="h-8 text-lg font-bold w-32 px-2"
+                        />
+                      </div>
+                    ) : (
+                      <p 
+                        className="text-lg font-bold text-foreground cursor-pointer hover:text-primary transition-colors flex items-center gap-1"
+                        onClick={() => setIsEditingPrice(true)}
+                      >
+                        {formatCurrency(effectivePrice, currency)}
+                        <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100">✏️</span>
+                      </p>
+                    )}
                   </div>
+                  
+                  {/* Editable Monthly Rent */}
                   <div>
-                    <p className="text-sm text-muted-foreground">{t('analyzer.monthlyRent') || 'Monthly Rent'}</p>
-                    <p className="text-lg font-bold text-primary">
-                      {formatCurrency(results.financials?.estimated_monthly_rent || 0, currency)}
+                    <p className="text-sm text-muted-foreground flex items-center gap-1">
+                      {t('analyzer.monthlyRent') || 'Monthly Rent'}
+                      {editedRent !== null && <Badge variant="outline" className="text-xs ml-1 border-primary/50 text-primary">Edited</Badge>}
+                      {results.financials?.is_rent_estimated && editedRent === null && (
+                        <Badge variant="outline" className="text-xs ml-1 border-yellow-500/50 text-yellow-400">Estimated</Badge>
+                      )}
                     </p>
+                    {isEditingRent ? (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-lg font-bold text-primary">$</span>
+                        <Input
+                          type="number"
+                          autoFocus
+                          value={editedRent ?? results.financials?.estimated_monthly_rent ?? ''}
+                          onChange={(e) => setEditedRent(e.target.value ? Number(e.target.value) : null)}
+                          onBlur={() => setIsEditingRent(false)}
+                          onKeyDown={(e) => e.key === 'Enter' && setIsEditingRent(false)}
+                          className="h-8 text-lg font-bold w-32 px-2"
+                        />
+                      </div>
+                    ) : (
+                      <p 
+                        className="text-lg font-bold text-primary cursor-pointer hover:text-primary/80 transition-colors flex items-center gap-1"
+                        onClick={() => setIsEditingRent(true)}
+                      >
+                        {formatCurrency(effectiveRent, currency)}
+                        <span className="text-xs text-muted-foreground opacity-0 group-hover:opacity-100">✏️</span>
+                      </p>
+                    )}
                   </div>
                 </div>
-                {results.financials?.suggested_offer_price && (
+                {displayMetrics?.suggested_offer_price && (
                   <div className="mt-4 pt-4 border-t border-border">
                     <p className="text-sm text-muted-foreground">{t('analyzer.suggestedOffer') || 'AI Suggested Offer'}</p>
                     <p className="text-xl font-bold text-primary">
-                      {formatCurrency(results.financials.suggested_offer_price, currency)}
+                      {formatCurrency(displayMetrics.suggested_offer_price, currency)}
                     </p>
                   </div>
                 )}

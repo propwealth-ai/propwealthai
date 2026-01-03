@@ -45,6 +45,7 @@ export interface DeepScanFinancials {
   purchase_price: number;
   listing_price?: number;
   estimated_monthly_rent: number;
+  is_rent_estimated?: boolean;
   operating_expenses: number;
   opex_breakdown?: OpExBreakdown;
   net_operating_income_annual: number;
