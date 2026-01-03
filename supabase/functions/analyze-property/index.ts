@@ -452,12 +452,27 @@ YOU MUST ONLY EXTRACT DATA FOR THIS SPECIFIC UNIT.
 - The List Price MUST be for unit ${targetUnit} ONLY
 - If you see multiple prices, use ONLY the one in the main listing header for ${targetUnit}` : 'Extract data for the primary listing only.'}
 
+=== CSS SELECTOR PRIORITY EXTRACTION (CRITICAL) ===
+When extracting the listing price, follow this EXACT priority order:
+1. FIRST: Look for elements with data-testid="price" or class containing "price" in the MAIN listing card
+2. SECOND: Look for the LARGEST/BOLDEST dollar amount near the top of the listing (this is the List Price)
+3. THIRD: If you see BOTH "Zestimate" (market estimate) AND "List Price" (asking price), ALWAYS use the LOWER value labeled as "Price" or "List Price"
+4. NEVER use "Zestimate", "Estimated Value", or "Home Value" as the listing_price
+
+=== SUSPICIOUS PRICE DETECTION ===
+If you extract a price > $400,000 but the property is described as:
+- "Studio" or "1 BR" or "1 Bath" in a Co-op/Coop building
+- Located in a building with cheaper units visible
+Then FLAG this as suspicious and RE-SCAN for a lower price in the main listing header.
+The correct price is almost always the LOWER number shown prominently.
+
 === CRITICAL RULES ===
 1. Extract RAW VALUES ONLY. Do NOT calculate any financial metrics.
 2. NEVER generate or estimate a "market value" - use the ACTUAL LISTING PRICE ONLY.
-3. The "listing_price" field is SACRED - it must be the EXACT price shown for THIS unit.
+3. The "listing_price" field is SACRED - it must be the EXACT price shown for THIS unit in the main header.
 4. Detect ownership type (Fee Simple, Leasehold, Land Lease, Co-op).
 5. ANTI-HALLUCINATION: If a section shows "Other Units" or "Similar Listings", SKIP IT ENTIRELY.
+6. When in doubt, use the LOWER price visible on the page.
 
 JURISDICTION: ${jurisdiction.code}
 CURRENCY: ${jurisdiction.currency}
