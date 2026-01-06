@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserPlus, Users, DollarSign, Copy, RefreshCw, Trash2, Edit2, Eye, Check, X } from 'lucide-react';
+import { UserPlus, Users, DollarSign, Copy, RefreshCw, Trash2, Edit2, Eye, Check, X, FileDown, CheckSquare, Square, Calendar } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import jsPDF from 'jspdf';
 
 interface ReferralDetail {
   id: string;
@@ -36,6 +45,7 @@ interface ReferralDetail {
   referred_email: string;
   referred_name: string | null;
   referred_plan: string;
+  selected?: boolean;
 }
 
 interface Influencer {
@@ -58,6 +68,11 @@ const AdminPartners: React.FC = () => {
   const [selectedInfluencer, setSelectedInfluencer] = useState<Influencer | null>(null);
   const [editingReferralId, setEditingReferralId] = useState<string | null>(null);
   const [editingCommission, setEditingCommission] = useState<string>('');
+  const [selectedReferrals, setSelectedReferrals] = useState<Set<string>>(new Set());
+  const [bulkStatus, setBulkStatus] = useState<string>('paid');
+  const [reportStartDate, setReportStartDate] = useState<string>('');
+  const [reportEndDate, setReportEndDate] = useState<string>('');
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   // Fetch influencers with affiliate stats and referral details
   const { data: influencers, isLoading } = useQuery({
@@ -266,6 +281,200 @@ const AdminPartners: React.FC = () => {
     });
   };
 
+  // Toggle single referral selection
+  const toggleReferralSelection = (referralId: string) => {
+    setSelectedReferrals(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(referralId)) {
+        newSet.delete(referralId);
+      } else {
+        newSet.add(referralId);
+      }
+      return newSet;
+    });
+  };
+
+  // Toggle all referrals selection
+  const toggleAllReferrals = () => {
+    if (!selectedInfluencer) return;
+    if (selectedReferrals.size === selectedInfluencer.referrals.length) {
+      setSelectedReferrals(new Set());
+    } else {
+      setSelectedReferrals(new Set(selectedInfluencer.referrals.map(r => r.id)));
+    }
+  };
+
+  // Bulk update status mutation
+  const bulkUpdateStatusMutation = useMutation({
+    mutationFn: async ({ referralIds, status }: { referralIds: string[]; status: string }) => {
+      const { error } = await supabase
+        .from('affiliate_referrals')
+        .update({ status })
+        .in('id', referralIds);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-influencers'] });
+      setSelectedReferrals(new Set());
+      toast({
+        title: t('admin.bulkUpdateSuccess'),
+        description: t('admin.bulkUpdateSuccessDesc'),
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: t('common.error'),
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  const handleBulkStatusUpdate = () => {
+    if (selectedReferrals.size === 0) return;
+    bulkUpdateStatusMutation.mutate({ 
+      referralIds: Array.from(selectedReferrals), 
+      status: bulkStatus 
+    });
+  };
+
+  // Get all referrals for report
+  const allReferrals = useMemo(() => {
+    if (!influencers) return [];
+    return influencers.flatMap(inf => 
+      inf.referrals.map(r => ({
+        ...r,
+        influencerName: inf.full_name || inf.email,
+        influencerEmail: inf.email,
+        influencerCode: inf.referral_code,
+      }))
+    );
+  }, [influencers]);
+
+  // Filter referrals by date range
+  const filteredReferralsForReport = useMemo(() => {
+    let filtered = allReferrals;
+    if (reportStartDate) {
+      filtered = filtered.filter(r => new Date(r.created_at) >= new Date(reportStartDate));
+    }
+    if (reportEndDate) {
+      const endDate = new Date(reportEndDate);
+      endDate.setHours(23, 59, 59, 999);
+      filtered = filtered.filter(r => new Date(r.created_at) <= endDate);
+    }
+    return filtered;
+  }, [allReferrals, reportStartDate, reportEndDate]);
+
+  // Generate PDF Report
+  const generatePDFReport = () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    
+    // Header
+    doc.setFillColor(16, 185, 129); // Emerald
+    doc.rect(0, 0, pageWidth, 40, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(24);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PropWealth AI', 14, 20);
+    
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'normal');
+    doc.text(t('admin.commissionsReport'), 14, 32);
+    
+    // Date range
+    doc.setTextColor(60, 60, 60);
+    doc.setFontSize(10);
+    let dateText = t('admin.allTime');
+    if (reportStartDate || reportEndDate) {
+      const startStr = reportStartDate || t('admin.beginning');
+      const endStr = reportEndDate || t('admin.today');
+      dateText = `${startStr} - ${endStr}`;
+    }
+    doc.text(`${t('admin.period')}: ${dateText}`, 14, 50);
+    doc.text(`${t('admin.generatedOn')}: ${new Date().toLocaleDateString()}`, 14, 56);
+    
+    // Summary stats
+    const paidReferrals = filteredReferralsForReport.filter(r => r.status === 'paid');
+    const pendingReferrals = filteredReferralsForReport.filter(r => r.status === 'pending');
+    const totalPaid = paidReferrals.reduce((sum, r) => sum + r.commission_amount, 0);
+    const totalPending = pendingReferrals.reduce((sum, r) => sum + r.commission_amount, 0);
+    
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(t('admin.summary'), 14, 70);
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`${t('admin.totalReferrals')}: ${filteredReferralsForReport.length}`, 14, 78);
+    doc.text(`${t('admin.paidCommissions')}: $${totalPaid.toFixed(2)} (${paidReferrals.length} ${t('admin.referrals').toLowerCase()})`, 14, 86);
+    doc.text(`${t('admin.pendingCommissions')}: $${totalPending.toFixed(2)} (${pendingReferrals.length} ${t('admin.referrals').toLowerCase()})`, 14, 94);
+    doc.text(`${t('admin.totalCommissions')}: $${(totalPaid + totalPending).toFixed(2)}`, 14, 102);
+    
+    // Table header
+    let yPos = 118;
+    doc.setFillColor(241, 245, 249);
+    doc.rect(14, yPos - 6, pageWidth - 28, 10, 'F');
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.text(t('admin.partner'), 16, yPos);
+    doc.text(t('admin.referredUser'), 55, yPos);
+    doc.text(t('admin.plan'), 100, yPos);
+    doc.text(t('admin.status'), 125, yPos);
+    doc.text(t('admin.commission'), 150, yPos);
+    doc.text(t('admin.date'), 175, yPos);
+    
+    // Table rows
+    doc.setFont('helvetica', 'normal');
+    yPos += 10;
+    
+    filteredReferralsForReport.forEach((referral, index) => {
+      if (yPos > 270) {
+        doc.addPage();
+        yPos = 20;
+      }
+      
+      if (index % 2 === 0) {
+        doc.setFillColor(249, 250, 251);
+        doc.rect(14, yPos - 5, pageWidth - 28, 8, 'F');
+      }
+      
+      doc.setFontSize(8);
+      doc.text((referral.influencerName || '').substring(0, 18), 16, yPos);
+      doc.text((referral.referred_name || referral.referred_email || '').substring(0, 20), 55, yPos);
+      doc.text(referral.referred_plan, 100, yPos);
+      doc.text(referral.status, 125, yPos);
+      doc.text(`$${referral.commission_amount.toFixed(2)}`, 150, yPos);
+      doc.text(new Date(referral.created_at).toLocaleDateString(), 175, yPos);
+      
+      yPos += 8;
+    });
+    
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(128, 128, 128);
+      doc.text(`www.propwealthai.com | info@propwealthai.com`, 14, 285);
+      doc.text(`${t('admin.page')} ${i} ${t('admin.of')} ${pageCount}`, pageWidth - 30, 285);
+    }
+    
+    // Save
+    const filename = `commissions-report-${reportStartDate || 'all'}-${reportEndDate || 'now'}.pdf`;
+    doc.save(filename);
+    
+    toast({
+      title: t('admin.reportGenerated'),
+      description: t('admin.reportGeneratedDesc'),
+    });
+    
+    setIsReportModalOpen(false);
+  };
+
   // Calculate totals
   const totalReferrals = influencers?.reduce((sum, inf) => sum + inf.referredCount, 0) || 0;
   const totalRevenue = influencers?.reduce((sum, inf) => sum + inf.totalRevenue, 0) || 0;
@@ -309,8 +518,82 @@ const AdminPartners: React.FC = () => {
         </div>
       </div>
 
-      {/* Create Partner Button */}
-      <div className={cn("flex justify-end", isRTL && "justify-start")}>
+      {/* Action Buttons */}
+      <div className={cn("flex gap-3 flex-wrap", isRTL ? "justify-start" : "justify-end")}>
+        {/* Export Report Button */}
+        <Dialog open={isReportModalOpen} onOpenChange={setIsReportModalOpen}>
+          <DialogTrigger asChild>
+            <Button variant="outline" className="border-primary/30 text-primary hover:bg-primary/10">
+              <FileDown className="w-4 h-4 mr-2" />
+              {t('admin.exportReport')}
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileDown className="w-5 h-5 text-primary" />
+                {t('admin.commissionsReport')}
+              </DialogTitle>
+              <DialogDescription>
+                {t('admin.exportReportDesc')}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    {t('admin.startDate')}
+                  </Label>
+                  <Input
+                    type="date"
+                    value={reportStartDate}
+                    onChange={(e) => setReportStartDate(e.target.value)}
+                    className="input-executive"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Calendar className="w-4 h-4" />
+                    {t('admin.endDate')}
+                  </Label>
+                  <Input
+                    type="date"
+                    value={reportEndDate}
+                    onChange={(e) => setReportEndDate(e.target.value)}
+                    className="input-executive"
+                  />
+                </div>
+              </div>
+              <div className="p-4 rounded-lg bg-muted/50 space-y-2">
+                <p className="text-sm font-medium">{t('admin.previewSummary')}</p>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <span className="text-muted-foreground">{t('admin.totalReferrals')}:</span>
+                  <span className="font-medium">{filteredReferralsForReport.length}</span>
+                  <span className="text-muted-foreground">{t('admin.paidCommissions')}:</span>
+                  <span className="font-medium text-success">
+                    ${filteredReferralsForReport.filter(r => r.status === 'paid').reduce((s, r) => s + r.commission_amount, 0).toFixed(2)}
+                  </span>
+                  <span className="text-muted-foreground">{t('admin.pendingCommissions')}:</span>
+                  <span className="font-medium text-warning">
+                    ${filteredReferralsForReport.filter(r => r.status === 'pending').reduce((s, r) => s + r.commission_amount, 0).toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsReportModalOpen(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button onClick={generatePDFReport} className="btn-premium text-primary-foreground">
+                <FileDown className="w-4 h-4 mr-2" />
+                {t('admin.downloadPDF')}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Create Partner Button */}
         <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
           <DialogTrigger asChild>
             <Button className="btn-premium text-primary-foreground">
@@ -488,10 +771,46 @@ const AdminPartners: React.FC = () => {
             </DialogDescription>
           </DialogHeader>
           
+          {/* Bulk Actions Bar */}
+          {selectedInfluencer && selectedReferrals.size > 0 && (
+            <div className="flex items-center gap-4 p-3 bg-primary/10 rounded-lg border border-primary/20 mb-4">
+              <span className="text-sm font-medium">
+                {selectedReferrals.size} {t('admin.selected')}
+              </span>
+              <div className="flex items-center gap-2">
+                <Select value={bulkStatus} onValueChange={setBulkStatus}>
+                  <SelectTrigger className="w-32 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="paid">{t('admin.markAsPaid')}</SelectItem>
+                    <SelectItem value="pending">{t('admin.markAsPending')}</SelectItem>
+                    <SelectItem value="cancelled">{t('admin.markAsCancelled')}</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button 
+                  size="sm" 
+                  onClick={handleBulkStatusUpdate}
+                  disabled={bulkUpdateStatusMutation.isPending}
+                  className="btn-premium text-primary-foreground"
+                >
+                  <Check className="w-4 h-4 mr-1" />
+                  {t('admin.applyBulkAction')}
+                </Button>
+              </div>
+            </div>
+          )}
+
           {selectedInfluencer && selectedInfluencer.referrals.length > 0 ? (
             <Table>
               <TableHeader>
                 <TableRow className="hover:bg-transparent border-border">
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={selectedInfluencer && selectedReferrals.size === selectedInfluencer.referrals.length}
+                      onCheckedChange={toggleAllReferrals}
+                    />
+                  </TableHead>
                   <TableHead>{t('admin.referredUser')}</TableHead>
                   <TableHead>{t('admin.plan')}</TableHead>
                   <TableHead>{t('admin.status')}</TableHead>
@@ -502,7 +821,13 @@ const AdminPartners: React.FC = () => {
               </TableHeader>
               <TableBody>
                 {selectedInfluencer.referrals.map((referral) => (
-                  <TableRow key={referral.id} className="border-border">
+                  <TableRow key={referral.id} className={cn("border-border", selectedReferrals.has(referral.id) && "bg-primary/5")}>
+                    <TableCell>
+                      <Checkbox
+                        checked={selectedReferrals.has(referral.id)}
+                        onCheckedChange={() => toggleReferralSelection(referral.id)}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div>
                         <p className="font-medium text-foreground">
@@ -590,7 +915,10 @@ const AdminPartners: React.FC = () => {
           )}
           
           <DialogFooter>
-            <Button variant="outline" onClick={() => setSelectedInfluencer(null)}>
+            <Button variant="outline" onClick={() => {
+              setSelectedInfluencer(null);
+              setSelectedReferrals(new Set());
+            }}>
               {t('common.close')}
             </Button>
           </DialogFooter>
