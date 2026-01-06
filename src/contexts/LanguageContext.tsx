@@ -45,7 +45,7 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'analytics.addPropertiesFirst': 'Add properties to your portfolio to see analytics and insights.',
     
     // Academy
-    'academy.title': 'PropWealth Academy',
+    'academy.title': 'PropWealth AI Academy',
     'academy.subtitle': 'Master the art of real estate investing',
     'academy.progress': 'Your Progress',
     'academy.markComplete': 'Mark as Complete',
@@ -446,6 +446,11 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'referral.yourCode': 'Your referral code',
     'referral.note': 'Referral codes can only be applied once and cannot be changed.',
     
+    // Settings - Referrer Info
+    'settings.referredBy': 'Referred By',
+    'settings.referrerNotFound': 'Referrer information not available',
+    'settings.referralNote': 'You were referred to PropWealth AI by this partner.',
+    
     // Landing Page
     'landing.metaTitle': 'PropWealth AI - Real Estate Investment Operating System',
     'landing.metaDescription': 'Analyze properties in seconds with AI. Calculate Cap Rate, ROI, and Cashflow with institutional-grade accuracy.',
@@ -497,7 +502,7 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'landing.footerTerms': 'Terms of Service',
     'landing.footerCookies': 'Cookie Policy',
     'landing.footerRights': 'All rights reserved.',
-    'landing.footerPoweredBy': 'Powered by PropWealth AI',
+    'landing.footerPoweredBy': 'Powered by PropWealth AI Engine',
     
     // Auth Page Enhancements
     'auth.welcomeBack': 'Welcome Back',
@@ -509,7 +514,7 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'auth.benefit1': 'Analyze any property in under 30 seconds',
     'auth.benefit2': 'Bank-grade security for your data',
     'auth.benefit3': '5-year wealth projections included',
-    'auth.testimonial': 'PropWealth helped me go from 0 to 3 properties in 18 months. The AI analysis is a game-changer.',
+    'auth.testimonial': 'PropWealth AI helped me go from 0 to 3 properties in 18 months. The AI analysis is a game-changer.',
     'auth.testimonialAuthor': 'Marcus R., Real Estate Investor',
     'auth.termsNote': 'By signing up, you agree to our Terms of Service and Privacy Policy.',
   },
@@ -540,7 +545,7 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'analytics.subtitle': 'Mergulhe nas métricas das suas propriedades',
     'analytics.noData': 'Sem Dados Disponíveis',
     'analytics.addPropertiesFirst': 'Adicione propriedades ao seu portfólio para ver análises e insights.',
-    'academy.title': 'Academia PropWealth',
+    'academy.title': 'Academia PropWealth AI',
     'academy.subtitle': 'Domine a arte do investimento imobiliário',
     'academy.progress': 'Seu Progresso',
     'academy.markComplete': 'Marcar como Concluído',
@@ -823,7 +828,7 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'dashboard.cashOnCash': 'Rendement Cash-on-Cash',
     'dashboard.welcome': 'Bienvenue',
     'dashboard.recentActivity': 'Activité Récente',
-    'academy.title': 'Académie PropWealth',
+    'academy.title': 'Académie PropWealth AI',
     'academy.subtitle': "Maîtrisez l'art de l'investissement immobilier",
     'academy.progress': 'Votre Progression',
     'academy.markComplete': 'Marquer comme terminé',
@@ -890,7 +895,7 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'dashboard.cashOnCash': '现金回报率',
     'dashboard.welcome': '欢迎回来',
     'dashboard.recentActivity': '最近活动',
-    'academy.title': 'PropWealth学院',
+    'academy.title': 'PropWealth AI学院',
     'academy.subtitle': '掌握房地产投资的艺术',
     'academy.progress': '您的进度',
     'academy.markComplete': '标记完成',
@@ -957,7 +962,7 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'dashboard.cashOnCash': 'Rendimento Cash-on-Cash',
     'dashboard.welcome': 'Bentornato',
     'dashboard.recentActivity': 'Attività Recente',
-    'academy.title': 'Accademia PropWealth',
+    'academy.title': 'Accademia PropWealth AI',
     'academy.subtitle': "Padroneggia l'arte degli investimenti immobiliari",
     'academy.progress': 'I Tuoi Progressi',
     'academy.markComplete': 'Segna come completato',
@@ -1024,7 +1029,7 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'dashboard.cashOnCash': 'Retorno Cash-on-Cash',
     'dashboard.welcome': 'Bienvenido de nuevo',
     'dashboard.recentActivity': 'Actividad Reciente',
-    'academy.title': 'Academia PropWealth',
+    'academy.title': 'Academia PropWealth AI',
     'academy.subtitle': 'Domina el arte de la inversión inmobiliaria',
     'academy.progress': 'Tu Progreso',
     'academy.markComplete': 'Marcar como completado',
@@ -1091,7 +1096,7 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'dashboard.cashOnCash': 'العائد النقدي',
     'dashboard.welcome': 'مرحباً بعودتك',
     'dashboard.recentActivity': 'النشاط الأخير',
-    'academy.title': 'أكاديمية PropWealth',
+    'academy.title': 'أكاديمية PropWealth AI',
     'academy.subtitle': 'أتقن فن الاستثمار العقاري',
     'academy.progress': 'تقدمك',
     'academy.markComplete': 'وضع علامة مكتمل',

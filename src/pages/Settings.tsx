@@ -27,6 +27,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import ReferralCodeInput from '@/components/settings/ReferralCodeInput';
+import ReferrerInfoCard from '@/components/settings/ReferrerInfoCard';
 const languages: { code: LanguageCode; name: string; flag: string }[] = [
   { code: 'en', name: 'English', flag: '🇺🇸' },
   { code: 'pt', name: 'Português', flag: '🇧🇷' },
@@ -168,6 +169,9 @@ const Settings: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* Referrer Info Section */}
+      <ReferrerInfoCard />
 
       {/* Referral Code Section */}
       <ReferralCodeInput />

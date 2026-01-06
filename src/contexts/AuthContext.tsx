@@ -115,6 +115,32 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // The affiliate referral is now created by the database trigger
     if (!error && referralCode) {
       localStorage.removeItem('propwealth_referral_code');
+      
+      // Notify the partner via email about the new referral
+      try {
+        // Find the referrer's ID by their referral code
+        const { data: referrerData } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('referral_code', referralCode)
+          .eq('is_influencer', true)
+          .single();
+        
+        if (referrerData?.id) {
+          // Call the edge function to send notification email
+          await supabase.functions.invoke('notify-referral-signup', {
+            body: {
+              referrer_id: referrerData.id,
+              referred_user_name: fullName,
+              referred_user_email: email,
+            },
+          });
+          console.log('Partner notified of new referral signup');
+        }
+      } catch (notifyError) {
+        // Don't block signup if notification fails
+        console.error('Failed to notify partner:', notifyError);
+      }
     }
 
     return { error };

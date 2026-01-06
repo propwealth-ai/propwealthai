@@ -78,7 +78,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
               className="w-10 h-10 rounded-xl object-contain"
             />
             <div>
-              <h1 className="font-bold text-foreground text-lg">PropWealth</h1>
+              <h1 className="font-bold text-foreground text-lg">PropWealth AI</h1>
               <p className="text-xs text-muted-foreground">AI Investment OS</p>
             </div>
           </div>

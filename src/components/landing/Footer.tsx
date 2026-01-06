@@ -47,7 +47,7 @@ const Footer: React.FC = () => {
                 className="w-10 h-10 rounded-xl object-contain"
               />
               <div>
-                <h3 className="text-xl font-bold text-foreground">PropWealth</h3>
+                <h3 className="text-xl font-bold text-foreground">PropWealth AI</h3>
                 <p className="text-xs text-muted-foreground">AI Investment OS</p>
               </div>
             </div>
