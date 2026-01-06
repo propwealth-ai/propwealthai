@@ -480,6 +480,23 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'admin.withdrawalProcessedDesc': 'The withdrawal request has been updated',
     'admin.filterByStatus': 'Filter by status',
     
+    // Commission Settings
+    'admin.commissionSettings': 'Commission Settings',
+    'admin.commissionSettingsDesc': 'Configure commission amounts for each subscription plan. These values are automatically applied when a referred user upgrades.',
+    'admin.planType': 'Plan Type',
+    'admin.commissionAmount': 'Commission Amount',
+    'admin.active': 'Active',
+    'admin.inactive': 'Inactive',
+    'admin.editCommission': 'Edit',
+    'admin.note': 'Note',
+    'admin.commissionNote': 'Commission values are automatically applied when a referred user upgrades to the corresponding plan. You can manually adjust individual referral commissions in the Partners tab.',
+    'admin.settingUpdated': 'Setting Updated',
+    'admin.settingUpdatedDesc': 'The commission setting has been updated successfully',
+    'admin.settingUpdateError': 'Failed to update setting',
+    'admin.invalidAmount': 'Please enter a valid amount',
+    'admin.commissionUpdateError': 'Failed to update commission',
+    'admin.settings': 'Settings',
+    
     // Referral System
     'referral.title': 'Referral Code',
     'referral.description': 'Have a referral code from a partner? Enter it here to get benefits.',
@@ -900,6 +917,23 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'admin.avgCommission': 'Comissão Média',
     'admin.referralsGrowth': 'Crescimento de Indicações',
     'admin.commissionsGrowth': 'Crescimento de Comissões',
+    
+    // Commission Settings PT
+    'admin.commissionSettings': 'Configurações de Comissão',
+    'admin.commissionSettingsDesc': 'Configure os valores de comissão para cada plano. Estes valores são aplicados automaticamente quando um usuário indicado faz upgrade.',
+    'admin.planType': 'Tipo de Plano',
+    'admin.commissionAmount': 'Valor da Comissão',
+    'admin.active': 'Ativo',
+    'admin.inactive': 'Inativo',
+    'admin.editCommission': 'Editar',
+    'admin.note': 'Nota',
+    'admin.commissionNote': 'Os valores de comissão são aplicados automaticamente quando um usuário indicado faz upgrade para o plano correspondente. Você pode ajustar manualmente as comissões individuais na aba Parceiros.',
+    'admin.settingUpdated': 'Configuração Atualizada',
+    'admin.settingUpdatedDesc': 'A configuração de comissão foi atualizada com sucesso',
+    'admin.settingUpdateError': 'Falha ao atualizar configuração',
+    'admin.invalidAmount': 'Por favor, insira um valor válido',
+    'admin.commissionUpdateError': 'Falha ao atualizar comissão',
+    'admin.settings': 'Configurações',
     
     'common.save': 'Salvar',
     'common.cancel': 'Cancelar',

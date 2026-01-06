@@ -56,6 +56,33 @@ export type Database = {
           },
         ]
       }
+      commission_settings: {
+        Row: {
+          commission_amount: number
+          created_at: string
+          id: string
+          is_active: boolean
+          plan_type: string
+          updated_at: string
+        }
+        Insert: {
+          commission_amount?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          plan_type: string
+          updated_at?: string
+        }
+        Update: {
+          commission_amount?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          plan_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       course_progress: {
         Row: {
           completed_at: string | null
