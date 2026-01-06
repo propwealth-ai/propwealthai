@@ -109,6 +109,7 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     // Common
     'common.copied': 'Copied!',
     'common.copiedToClipboard': 'copied to clipboard',
+    'common.close': 'Close',
     
     // Roles
     'role.owner': 'Owner',
@@ -359,6 +360,15 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'admin.affiliateReferrals': 'Affiliate Referrals',
     'admin.noAffiliateReferrals': 'No affiliate referrals yet',
     'admin.referred': 'Referred',
+    'admin.commissionUpdated': 'Commission Updated',
+    'admin.commissionUpdatedDesc': 'The commission amount has been updated successfully',
+    'admin.invalidCommission': 'Please enter a valid commission amount',
+    'admin.referralsFor': 'Referrals for',
+    'admin.manageCommissions': 'View referred users and edit commission amounts for each referral',
+    'admin.referredUser': 'Referred User',
+    'admin.commission': 'Commission',
+    'admin.date': 'Date',
+    'admin.noReferrals': 'No referrals yet',
     
     // Affiliate Dashboard
     'nav.affiliate': 'Affiliate',
@@ -732,6 +742,15 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'admin.partnerRemovedDesc': 'O status de parceiro foi revogado',
     'admin.fillAllFields': 'Por favor, preencha todos os campos obrigatórios',
     'admin.partner': 'Parceiro',
+    'admin.commissionUpdated': 'Comissão Atualizada',
+    'admin.commissionUpdatedDesc': 'O valor da comissão foi atualizado com sucesso',
+    'admin.invalidCommission': 'Por favor, insira um valor de comissão válido',
+    'admin.referralsFor': 'Indicações de',
+    'admin.manageCommissions': 'Veja os usuários indicados e edite os valores de comissão para cada indicação',
+    'admin.referredUser': 'Usuário Indicado',
+    'admin.commission': 'Comissão',
+    'admin.date': 'Data',
+    'admin.noReferrals': 'Nenhuma indicação ainda',
     
     // Affiliate Dashboard (Portuguese)
     'nav.affiliate': 'Afiliado',
@@ -812,6 +831,7 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'common.success': 'Sucesso',
     'common.error': 'Erro',
     'common.language': 'Idioma',
+    'common.close': 'Fechar',
   },
   fr: {
     'nav.dashboard': 'Tableau de bord',

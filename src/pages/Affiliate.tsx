@@ -108,34 +108,48 @@ const Affiliate: React.FC = () => {
     enabled: !!profile?.id && isInfluencer,
   });
 
-  // Fetch referral history
+  // Fetch referral history with referred user profiles using join
   const { data: referrals } = useQuery({
     queryKey: ['affiliate-referrals', profile?.id],
     queryFn: async () => {
       if (!profile?.id) return [];
       
+      // Use the join directly - RLS allows influencers to see their referrals
+      // and profiles can be viewed if same team or own profile
       const { data, error } = await supabase
         .from('affiliate_referrals')
-        .select('*')
+        .select(`
+          id,
+          referred_id,
+          commission_amount,
+          status,
+          created_at,
+          profiles!affiliate_referrals_referred_id_fkey (
+            email,
+            full_name,
+            plan_type
+          )
+        `)
         .eq('referrer_id', profile.id)
         .order('created_at', { ascending: false });
       
       if (error) throw error;
 
-      // Fetch referred user details
-      const referralsWithUsers = await Promise.all(
-        (data || []).map(async (ref) => {
-          const { data: user } = await supabase
-            .from('profiles')
-            .select('email, full_name, plan_type')
-            .eq('id', ref.referred_id)
-            .maybeSingle();
-          
-          return { ...ref, referred: user };
-        })
-      );
+      // Transform the data to match expected format
+      const transformedData = (data || []).map((ref) => ({
+        id: ref.id,
+        referred_id: ref.referred_id,
+        commission_amount: ref.commission_amount,
+        status: ref.status,
+        created_at: ref.created_at,
+        referred: ref.profiles ? {
+          email: ref.profiles.email,
+          full_name: ref.profiles.full_name,
+          plan_type: ref.profiles.plan_type,
+        } : null,
+      }));
 
-      return referralsWithUsers as Referral[];
+      return transformedData as Referral[];
     },
     enabled: !!profile?.id && isInfluencer,
   });
