@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserPlus, Users, DollarSign, Copy, RefreshCw, Trash2 } from 'lucide-react';
+import { UserPlus, Users, DollarSign, Copy, RefreshCw, Trash2, Edit2, Eye, Check, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
@@ -26,6 +27,17 @@ import {
   TableRow,
 } from '@/components/ui/table';
 
+interface ReferralDetail {
+  id: string;
+  referred_id: string;
+  commission_amount: number;
+  status: string;
+  created_at: string;
+  referred_email: string;
+  referred_name: string | null;
+  referred_plan: string;
+}
+
 interface Influencer {
   id: string;
   email: string;
@@ -34,6 +46,7 @@ interface Influencer {
   created_at: string;
   referredCount: number;
   totalRevenue: number;
+  referrals: ReferralDetail[];
 }
 
 const AdminPartners: React.FC = () => {
@@ -42,8 +55,11 @@ const AdminPartners: React.FC = () => {
   const queryClient = useQueryClient();
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [newPartner, setNewPartner] = useState({ email: '', name: '', code: '' });
+  const [selectedInfluencer, setSelectedInfluencer] = useState<Influencer | null>(null);
+  const [editingReferralId, setEditingReferralId] = useState<string | null>(null);
+  const [editingCommission, setEditingCommission] = useState<string>('');
 
-  // Fetch influencers with affiliate stats
+  // Fetch influencers with affiliate stats and referral details
   const { data: influencers, isLoading } = useQuery({
     queryKey: ['admin-influencers'],
     queryFn: async () => {
@@ -55,22 +71,46 @@ const AdminPartners: React.FC = () => {
       
       if (error) throw error;
 
-      // Get referral stats from affiliate_referrals table
+      // Get referral stats with referred user details
       const influencersWithStats = await Promise.all(
         (profiles || []).map(async (profile) => {
-          // Get stats from affiliate_referrals table
+          // Get referrals with referred user details
           const { data: referrals } = await supabase
             .from('affiliate_referrals')
-            .select('id, commission_amount')
-            .eq('referrer_id', profile.id);
+            .select(`
+              id,
+              referred_id,
+              commission_amount,
+              status,
+              created_at,
+              profiles!affiliate_referrals_referred_id_fkey (
+                email,
+                full_name,
+                plan_type
+              )
+            `)
+            .eq('referrer_id', profile.id)
+            .order('created_at', { ascending: false });
 
-          const referredCount = referrals?.length || 0;
-          const totalRevenue = referrals?.reduce((sum, r) => sum + Number(r.commission_amount || 0), 0) || 0;
+          const referralDetails: ReferralDetail[] = (referrals || []).map((r) => ({
+            id: r.id,
+            referred_id: r.referred_id,
+            commission_amount: Number(r.commission_amount || 0),
+            status: r.status,
+            created_at: r.created_at,
+            referred_email: r.profiles?.email || 'Unknown',
+            referred_name: r.profiles?.full_name || null,
+            referred_plan: r.profiles?.plan_type || 'free',
+          }));
+
+          const referredCount = referralDetails.length;
+          const totalRevenue = referralDetails.reduce((sum, r) => sum + r.commission_amount, 0);
 
           return {
             ...profile,
             referredCount,
             totalRevenue,
+            referrals: referralDetails,
           };
         })
       );
@@ -155,6 +195,34 @@ const AdminPartners: React.FC = () => {
     },
   });
 
+  // Update commission mutation
+  const updateCommissionMutation = useMutation({
+    mutationFn: async ({ referralId, commission }: { referralId: string; commission: number }) => {
+      const { error } = await supabase
+        .from('affiliate_referrals')
+        .update({ commission_amount: commission })
+        .eq('id', referralId);
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-influencers'] });
+      setEditingReferralId(null);
+      setEditingCommission('');
+      toast({
+        title: t('admin.commissionUpdated'),
+        description: t('admin.commissionUpdatedDesc'),
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: t('common.error'),
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   const handleCreatePartner = () => {
     if (!newPartner.email || !newPartner.code) {
       toast({
@@ -165,6 +233,29 @@ const AdminPartners: React.FC = () => {
       return;
     }
     createInfluencerMutation.mutate({ email: newPartner.email, code: newPartner.code });
+  };
+
+  const handleStartEditCommission = (referralId: string, currentCommission: number) => {
+    setEditingReferralId(referralId);
+    setEditingCommission(currentCommission.toString());
+  };
+
+  const handleSaveCommission = (referralId: string) => {
+    const commission = parseFloat(editingCommission);
+    if (isNaN(commission) || commission < 0) {
+      toast({
+        title: t('common.error'),
+        description: t('admin.invalidCommission'),
+        variant: 'destructive',
+      });
+      return;
+    }
+    updateCommissionMutation.mutate({ referralId, commission });
+  };
+
+  const handleCancelEditCommission = () => {
+    setEditingReferralId(null);
+    setEditingCommission('');
   };
 
   const copyToClipboard = (text: string) => {
@@ -352,7 +443,14 @@ const AdminPartners: React.FC = () => {
                     </div>
                   </TableCell>
                   <TableCell className={cn("font-medium", isRTL && "text-right")}>
-                    {influencer.referredCount}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-primary hover:bg-primary/10"
+                      onClick={() => setSelectedInfluencer(influencer)}
+                    >
+                      {influencer.referredCount} <Eye className="w-3 h-3 ml-1" />
+                    </Button>
                   </TableCell>
                   <TableCell className={cn("font-medium text-success", isRTL && "text-right")}>
                     ${influencer.totalRevenue.toLocaleString()}
@@ -376,6 +474,128 @@ const AdminPartners: React.FC = () => {
           </TableBody>
         </Table>
       </div>
+
+      {/* Referrals Detail Modal */}
+      <Dialog open={!!selectedInfluencer} onOpenChange={() => setSelectedInfluencer(null)}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-primary" />
+              {t('admin.referralsFor')} {selectedInfluencer?.full_name || selectedInfluencer?.email}
+            </DialogTitle>
+            <DialogDescription>
+              {t('admin.manageCommissions')}
+            </DialogDescription>
+          </DialogHeader>
+          
+          {selectedInfluencer && selectedInfluencer.referrals.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent border-border">
+                  <TableHead>{t('admin.referredUser')}</TableHead>
+                  <TableHead>{t('admin.plan')}</TableHead>
+                  <TableHead>{t('admin.status')}</TableHead>
+                  <TableHead>{t('admin.commission')}</TableHead>
+                  <TableHead>{t('admin.date')}</TableHead>
+                  <TableHead>{t('admin.actions')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {selectedInfluencer.referrals.map((referral) => (
+                  <TableRow key={referral.id} className="border-border">
+                    <TableCell>
+                      <div>
+                        <p className="font-medium text-foreground">
+                          {referral.referred_name || t('common.unknown')}
+                        </p>
+                        <p className="text-xs text-muted-foreground">{referral.referred_email}</p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={referral.referred_plan === 'pro' ? 'default' : 'secondary'} className="capitalize">
+                        {referral.referred_plan}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge 
+                        variant={referral.status === 'paid' ? 'default' : 'secondary'}
+                        className={referral.status === 'paid' ? 'bg-success/20 text-success border-success/30' : ''}
+                      >
+                        {referral.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {editingReferralId === referral.id ? (
+                        <div className="flex items-center gap-1">
+                          <span className="text-muted-foreground">$</span>
+                          <Input
+                            type="number"
+                            value={editingCommission}
+                            onChange={(e) => setEditingCommission(e.target.value)}
+                            className="w-20 h-8 text-sm"
+                            min="0"
+                            step="0.01"
+                          />
+                        </div>
+                      ) : (
+                        <span className="font-medium text-success">
+                          ${referral.commission_amount.toFixed(2)}
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground text-sm">
+                      {new Date(referral.created_at).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell>
+                      {editingReferralId === referral.id ? (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-success hover:bg-success/10 h-8 w-8 p-0"
+                            onClick={() => handleSaveCommission(referral.id)}
+                            disabled={updateCommissionMutation.isPending}
+                          >
+                            <Check className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-muted-foreground hover:bg-muted h-8 w-8 p-0"
+                            onClick={handleCancelEditCommission}
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-primary hover:bg-primary/10 h-8 w-8 p-0"
+                          onClick={() => handleStartEditCommission(referral.id, referral.commission_amount)}
+                        >
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Users className="w-12 h-12 mx-auto mb-2 opacity-50" />
+              <p>{t('admin.noReferrals')}</p>
+            </div>
+          )}
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSelectedInfluencer(null)}>
+              {t('common.close')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
