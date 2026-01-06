@@ -42,6 +42,21 @@ const ReferralCodeInput: React.FC = () => {
 
       if (updateError) throw updateError;
 
+      // Create affiliate referral record
+      const { error: referralError } = await supabase
+        .from('affiliate_referrals')
+        .insert({
+          referrer_id: influencer.id,
+          referred_id: profile?.id,
+          commission_amount: 0,
+          status: 'pending'
+        });
+
+      if (referralError) {
+        console.error('Error creating affiliate referral:', referralError);
+        // Don't throw - the referral code was still applied
+      }
+
       return influencer;
     },
     onSuccess: (influencer) => {
