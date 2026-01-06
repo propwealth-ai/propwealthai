@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { UserPlus, Users, DollarSign, Copy, RefreshCw, Trash2, Edit2, Eye, Check, X, FileDown, CheckSquare, Square, Calendar } from 'lucide-react';
+import { UserPlus, Users, DollarSign, Copy, RefreshCw, Trash2, Edit2, Eye, Check, X, FileDown, Calendar, BarChart3, Filter } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import AffiliateMetricsDashboard from './AffiliateMetricsDashboard';
 import {
   Dialog,
   DialogContent,
@@ -73,6 +75,8 @@ const AdminPartners: React.FC = () => {
   const [reportStartDate, setReportStartDate] = useState<string>('');
   const [reportEndDate, setReportEndDate] = useState<string>('');
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [activeTab, setActiveTab] = useState<string>('table');
 
   // Fetch influencers with affiliate stats and referral details
   const { data: influencers, isLoading } = useQuery({
@@ -366,6 +370,19 @@ const AdminPartners: React.FC = () => {
     return filtered;
   }, [allReferrals, reportStartDate, reportEndDate]);
 
+  // Filter influencers based on status filter
+  const filteredInfluencers = useMemo(() => {
+    if (!influencers || statusFilter === 'all') return influencers;
+    return influencers.filter(inf => 
+      inf.referrals.some(r => r.status === statusFilter)
+    ).map(inf => ({
+      ...inf,
+      referrals: inf.referrals.filter(r => r.status === statusFilter),
+      referredCount: inf.referrals.filter(r => r.status === statusFilter).length,
+      totalRevenue: inf.referrals.filter(r => r.status === statusFilter).reduce((sum, r) => sum + r.commission_amount, 0),
+    }));
+  }, [influencers, statusFilter]);
+
   // Generate PDF Report
   const generatePDFReport = () => {
     const doc = new jsPDF();
@@ -475,9 +492,9 @@ const AdminPartners: React.FC = () => {
     setIsReportModalOpen(false);
   };
 
-  // Calculate totals
-  const totalReferrals = influencers?.reduce((sum, inf) => sum + inf.referredCount, 0) || 0;
-  const totalRevenue = influencers?.reduce((sum, inf) => sum + inf.totalRevenue, 0) || 0;
+  // Calculate totals based on filter
+  const totalReferrals = filteredInfluencers?.reduce((sum, inf) => sum + inf.referredCount, 0) || 0;
+  const totalRevenue = filteredInfluencers?.reduce((sum, inf) => sum + inf.totalRevenue, 0) || 0;
 
   return (
     <div className="space-y-6">
@@ -667,96 +684,165 @@ const AdminPartners: React.FC = () => {
         </Dialog>
       </div>
 
-      {/* Partners Table */}
-      <div className="glass-card overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow className="hover:bg-transparent border-border">
-              <TableHead className={isRTL ? "text-right" : ""}>{t('admin.partner')}</TableHead>
-              <TableHead className={isRTL ? "text-right" : ""}>{t('admin.referralCode')}</TableHead>
-              <TableHead className={isRTL ? "text-right" : ""}>{t('admin.referredUsers')}</TableHead>
-              <TableHead className={isRTL ? "text-right" : ""}>{t('admin.revenueGenerated')}</TableHead>
-              <TableHead className={isRTL ? "text-right" : ""}>{t('admin.joinDate')}</TableHead>
-              <TableHead className={isRTL ? "text-right" : ""}>{t('admin.actions')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
-                  <RefreshCw className="w-6 h-6 animate-spin mx-auto text-primary" />
-                </TableCell>
-              </TableRow>
-            ) : influencers?.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                  {t('admin.noPartners')}
-                </TableCell>
-              </TableRow>
-            ) : (
-              influencers?.map((influencer) => (
-                <TableRow key={influencer.id} className="border-border">
-                  <TableCell className={isRTL ? "text-right" : ""}>
-                    <div className={cn("flex items-center gap-3", isRTL && "flex-row-reverse justify-end")}>
-                      <div className="w-8 h-8 rounded-full bg-warning/20 flex items-center justify-center">
-                        <span className="text-warning text-sm font-medium">
-                          {influencer.full_name?.charAt(0) || influencer.email.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      <div className={isRTL ? "text-right" : ""}>
-                        <p className="font-medium text-foreground">{influencer.full_name || 'Unknown'}</p>
-                        <p className="text-xs text-muted-foreground">{influencer.email}</p>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell className={isRTL ? "text-right" : ""}>
-                    <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse justify-end")}>
-                      <code className="px-2 py-1 bg-primary/10 text-primary rounded text-sm font-mono">
-                        {influencer.referral_code || 'N/A'}
-                      </code>
-                      {influencer.referral_code && (
+      {/* View Tabs: Table vs Dashboard */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <div className={cn("flex items-center justify-between flex-wrap gap-4 mb-4", isRTL && "flex-row-reverse")}>
+          <TabsList className="glass-card p-1">
+            <TabsTrigger value="table" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <Users className="w-4 h-4" />
+              {t('admin.partnersTable')}
+            </TabsTrigger>
+            <TabsTrigger value="metrics" className="flex items-center gap-2 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              <BarChart3 className="w-4 h-4" />
+              {t('admin.metricsDashboard')}
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Status Filter - Only show on table view */}
+          {activeTab === 'table' && (
+            <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
+              <Filter className="w-4 h-4 text-muted-foreground" />
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-40 h-9">
+                  <SelectValue placeholder={t('admin.filterByStatus')} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t('admin.allStatuses')}</SelectItem>
+                  <SelectItem value="paid">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-success" />
+                      {t('admin.markAsPaid')}
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="pending">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-warning" />
+                      {t('admin.markAsPending')}
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="cancelled">
+                    <span className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-destructive" />
+                      {t('admin.markAsCancelled')}
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {statusFilter !== 'all' && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setStatusFilter('all')}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
+
+        <TabsContent value="table" className="mt-0">
+          {/* Partners Table */}
+          <div className="glass-card overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="hover:bg-transparent border-border">
+                  <TableHead className={isRTL ? "text-right" : ""}>{t('admin.partner')}</TableHead>
+                  <TableHead className={isRTL ? "text-right" : ""}>{t('admin.referralCode')}</TableHead>
+                  <TableHead className={isRTL ? "text-right" : ""}>{t('admin.referredUsers')}</TableHead>
+                  <TableHead className={isRTL ? "text-right" : ""}>{t('admin.revenueGenerated')}</TableHead>
+                  <TableHead className={isRTL ? "text-right" : ""}>{t('admin.joinDate')}</TableHead>
+                  <TableHead className={isRTL ? "text-right" : ""}>{t('admin.actions')}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8">
+                      <RefreshCw className="w-6 h-6 animate-spin mx-auto text-primary" />
+                    </TableCell>
+                  </TableRow>
+                ) : filteredInfluencers?.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      {statusFilter !== 'all' ? t('admin.noResultsFilter') : t('admin.noPartners')}
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredInfluencers?.map((influencer) => (
+                    <TableRow key={influencer.id} className="border-border">
+                      <TableCell className={isRTL ? "text-right" : ""}>
+                        <div className={cn("flex items-center gap-3", isRTL && "flex-row-reverse justify-end")}>
+                          <div className="w-8 h-8 rounded-full bg-warning/20 flex items-center justify-center">
+                            <span className="text-warning text-sm font-medium">
+                              {influencer.full_name?.charAt(0) || influencer.email.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <div className={isRTL ? "text-right" : ""}>
+                            <p className="font-medium text-foreground">{influencer.full_name || 'Unknown'}</p>
+                            <p className="text-xs text-muted-foreground">{influencer.email}</p>
+                          </div>
+                        </div>
+                      </TableCell>
+                      <TableCell className={isRTL ? "text-right" : ""}>
+                        <div className={cn("flex items-center gap-2", isRTL && "flex-row-reverse justify-end")}>
+                          <code className="px-2 py-1 bg-primary/10 text-primary rounded text-sm font-mono">
+                            {influencer.referral_code || 'N/A'}
+                          </code>
+                          {influencer.referral_code && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => copyToClipboard(influencer.referral_code!)}
+                            >
+                              <Copy className="w-3 h-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell className={cn("font-medium", isRTL && "text-right")}>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => copyToClipboard(influencer.referral_code!)}
+                          className="text-primary hover:bg-primary/10"
+                          onClick={() => {
+                            // Find the original influencer with all referrals for the modal
+                            const original = influencers?.find(i => i.id === influencer.id);
+                            if (original) setSelectedInfluencer(original);
+                          }}
                         >
-                          <Copy className="w-3 h-3" />
+                          {influencer.referredCount} <Eye className="w-3 h-3 ml-1" />
                         </Button>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell className={cn("font-medium", isRTL && "text-right")}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-primary hover:bg-primary/10"
-                      onClick={() => setSelectedInfluencer(influencer)}
-                    >
-                      {influencer.referredCount} <Eye className="w-3 h-3 ml-1" />
-                    </Button>
-                  </TableCell>
-                  <TableCell className={cn("font-medium text-success", isRTL && "text-right")}>
-                    ${influencer.totalRevenue.toLocaleString()}
-                  </TableCell>
-                  <TableCell className={cn("text-muted-foreground", isRTL && "text-right")}>
-                    {new Date(influencer.created_at).toLocaleDateString()}
-                  </TableCell>
-                  <TableCell className={isRTL ? "text-right" : ""}>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="text-destructive hover:bg-destructive/10"
-                      onClick={() => removeInfluencerMutation.mutate(influencer.id)}
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+                      </TableCell>
+                      <TableCell className={cn("font-medium text-success", isRTL && "text-right")}>
+                        ${influencer.totalRevenue.toLocaleString()}
+                      </TableCell>
+                      <TableCell className={cn("text-muted-foreground", isRTL && "text-right")}>
+                        {new Date(influencer.created_at).toLocaleDateString()}
+                      </TableCell>
+                      <TableCell className={isRTL ? "text-right" : ""}>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:bg-destructive/10"
+                          onClick={() => removeInfluencerMutation.mutate(influencer.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="metrics" className="mt-0">
+          <AffiliateMetricsDashboard allReferrals={allReferrals} />
+        </TabsContent>
+      </Tabs>
 
       {/* Referrals Detail Modal */}
       <Dialog open={!!selectedInfluencer} onOpenChange={() => setSelectedInfluencer(null)}>
