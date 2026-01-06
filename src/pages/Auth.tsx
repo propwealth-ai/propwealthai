@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Mail, Lock, User, ArrowRight, Tag, CheckCircle, TrendingUp, Shield, Zap } from 'lucide-react';
+import { Mail, Lock, User, ArrowRight, Tag, CheckCircle, TrendingUp, Shield, Zap, ArrowLeft } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/contexts/AuthContext';
@@ -102,7 +103,16 @@ const Auth: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-6 py-12">
+    <div className="min-h-screen bg-background flex items-center justify-center px-6 py-12 relative">
+      {/* Back to Home Button */}
+      <Link 
+        to="/" 
+        className="absolute top-6 left-6 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        <span className="text-sm">{t('common.back')}</span>
+      </Link>
+      
       <div className="w-full max-w-6xl mx-auto flex flex-col lg:flex-row lg:items-center lg:gap-16 xl:gap-24">
         {/* Left Side - Branding & Benefits */}
         <div className={cn(

@@ -15,15 +15,15 @@ const Footer: React.FC = () => {
       { label: t('landing.footerAnalyzer'), href: '/analyzer' },
     ],
     company: [
-      { label: t('landing.footerAbout'), href: '#about' },
-      { label: t('landing.footerCareers'), href: '#careers' },
-      { label: t('landing.footerBlog'), href: '#blog' },
-      { label: t('landing.footerContact'), href: '#contact' },
+      { label: t('landing.footerAbout'), href: '/about' },
+      { label: t('landing.footerCareers'), href: '/careers' },
+      { label: t('landing.footerBlog'), href: '/blog' },
+      { label: t('landing.footerContact'), href: '/contact' },
     ],
     legal: [
-      { label: t('landing.footerPrivacy'), href: '#privacy' },
-      { label: t('landing.footerTerms'), href: '#terms' },
-      { label: t('landing.footerCookies'), href: '#cookies' },
+      { label: t('landing.footerPrivacy'), href: '/privacy' },
+      { label: t('landing.footerTerms'), href: '/terms' },
+      { label: t('landing.footerCookies'), href: '/cookies' },
     ],
   };
 
