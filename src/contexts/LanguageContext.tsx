@@ -397,6 +397,18 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'admin.referrals': 'Referrals',
     'admin.page': 'Page',
     
+    // Partners Dashboard & Filters
+    'admin.partnersTable': 'Partners Table',
+    'admin.metricsDashboard': 'Metrics Dashboard',
+    'admin.noResultsFilter': 'No results for this filter',
+    'admin.thisMonthReferrals': 'This Month Referrals',
+    'admin.thisMonthCommissions': 'This Month Commissions',
+    'admin.vsLastMonth': 'vs last month',
+    'admin.avgReferralsMonth': 'Avg Referrals/Month',
+    'admin.avgCommission': 'Avg Commission',
+    'admin.referralsGrowth': 'Referrals Growth',
+    'admin.commissionsGrowth': 'Commissions Growth',
+    
     // Affiliate Dashboard
     'nav.affiliate': 'Affiliate',
     'affiliate.title': 'Affiliate Dashboard',
@@ -876,6 +888,18 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'admin.summary': 'Resumo',
     'admin.referrals': 'Indicações',
     'admin.page': 'Página',
+    
+    // Partners Dashboard & Filters PT
+    'admin.partnersTable': 'Tabela de Parceiros',
+    'admin.metricsDashboard': 'Dashboard de Métricas',
+    'admin.noResultsFilter': 'Nenhum resultado para este filtro',
+    'admin.thisMonthReferrals': 'Indicações Este Mês',
+    'admin.thisMonthCommissions': 'Comissões Este Mês',
+    'admin.vsLastMonth': 'vs mês passado',
+    'admin.avgReferralsMonth': 'Média Indicações/Mês',
+    'admin.avgCommission': 'Comissão Média',
+    'admin.referralsGrowth': 'Crescimento de Indicações',
+    'admin.commissionsGrowth': 'Crescimento de Comissões',
     
     'common.save': 'Salvar',
     'common.cancel': 'Cancelar',
