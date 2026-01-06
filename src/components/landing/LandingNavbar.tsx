@@ -48,7 +48,7 @@ const LandingNavbar: React.FC = () => {
               className="w-10 h-10 rounded-xl object-contain"
             />
             <div className="hidden sm:block">
-              <h1 className="text-xl font-bold text-foreground">PropWealth</h1>
+              <h1 className="text-xl font-bold text-foreground">PropWealth AI</h1>
               <p className="text-xs text-muted-foreground -mt-1">AI Investment OS</p>
             </div>
           </div>

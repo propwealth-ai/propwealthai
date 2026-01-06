@@ -117,7 +117,7 @@ const Auth: React.FC = () => {
                 className="w-16 h-16 rounded-2xl object-contain animate-pulse-glow"
               />
               <div>
-                <h1 className="text-4xl font-bold text-foreground">PropWealth</h1>
+                <h1 className="text-4xl font-bold text-foreground">PropWealth AI</h1>
                 <p className="text-muted-foreground">AI Investment OS</p>
               </div>
             </div>
@@ -186,7 +186,7 @@ const Auth: React.FC = () => {
                 className="w-12 h-12 rounded-xl object-contain"
               />
               <div>
-                <h1 className="text-2xl font-bold text-foreground">PropWealth</h1>
+                <h1 className="text-2xl font-bold text-foreground">PropWealth AI</h1>
                 <p className="text-xs text-muted-foreground">AI Investment OS</p>
               </div>
             </div>

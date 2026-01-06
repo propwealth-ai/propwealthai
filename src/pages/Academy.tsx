@@ -319,7 +319,7 @@ const Academy: React.FC = () => {
                 Select a Module
               </h3>
               <p className="text-muted-foreground max-w-md">
-                Choose a module from the left to start learning. Complete all lessons to become a PropWealth certified investor.
+                Choose a module from the left to start learning. Complete all lessons to become a PropWealth AI certified investor.
               </p>
             </div>
           )}
