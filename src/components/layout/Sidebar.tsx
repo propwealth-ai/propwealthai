@@ -13,7 +13,8 @@ import {
   BarChart3,
   History,
   ShieldCheck,
-  Award
+  Award,
+  X
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,9 +23,12 @@ import { useAdmin } from '@/hooks/useAdmin';
 import { cn } from '@/lib/utils';
 
 const LOGO_URL = "https://ik.imagekit.io/PropWealthAI/PropWealth%20AI%20/logo%20ofial%20propwealth%202%20-%20Copia%20(1)%20-%20Copia.png?updatedAt=1767203215713";
+
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
 interface NavItem {
@@ -34,7 +38,7 @@ interface NavItem {
   requiredPermission?: keyof RolePermissions;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
+const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle, mobileOpen, onMobileClose }) => {
   const { t, isRTL } = useLanguage();
   const { signOut, profile } = useAuth();
   const { canView, role } = useRBAC();
@@ -60,17 +64,36 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
 
   const isActive = (path: string) => location.pathname === path;
 
+  const handleNavClick = () => {
+    if (onMobileClose) {
+      onMobileClose();
+    }
+  };
+
+  const handleSignOut = () => {
+    signOut();
+    if (onMobileClose) {
+      onMobileClose();
+    }
+  };
+
   return (
     <aside 
+      id="mobile-sidebar"
       className={cn(
         "fixed top-0 h-screen bg-sidebar border-r border-sidebar-border flex flex-col transition-all duration-300 z-50",
-        collapsed ? "w-20" : "w-64",
-        isRTL ? "right-0 border-l border-r-0" : "left-0"
+        // Desktop styles
+        "hidden md:flex",
+        collapsed ? "md:w-20" : "md:w-64",
+        isRTL ? "md:right-0 md:border-l md:border-r-0" : "md:left-0",
+        // Mobile styles - show as overlay when mobileOpen
+        mobileOpen && "!flex w-72",
+        mobileOpen && (isRTL ? "right-0" : "left-0")
       )}
     >
       {/* Logo */}
-      <div className="p-6 flex items-center justify-between border-b border-sidebar-border">
-        {!collapsed && (
+      <div className="p-4 md:p-6 flex items-center justify-between border-b border-sidebar-border">
+        {(!collapsed || mobileOpen) && (
           <div className="flex items-center gap-3">
             <img 
               src={LOGO_URL} 
@@ -83,20 +106,30 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
             </div>
           </div>
         )}
-        {collapsed && (
+        {collapsed && !mobileOpen && (
           <img 
             src={LOGO_URL} 
             alt="PropWealth AI Logo" 
             className="w-10 h-10 rounded-xl object-contain mx-auto"
           />
         )}
+        {/* Mobile close button */}
+        {mobileOpen && (
+          <button
+            onClick={onMobileClose}
+            className="md:hidden w-8 h-8 rounded-lg bg-secondary flex items-center justify-center hover:bg-destructive/20 transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
       </div>
 
-      {/* Toggle Button */}
+      {/* Toggle Button - Desktop only */}
       <button
         onClick={onToggle}
         className={cn(
           "absolute top-20 -right-3 w-6 h-6 rounded-full bg-secondary border border-border flex items-center justify-center hover:bg-primary hover:border-primary transition-colors",
+          "hidden md:flex",
           isRTL && "right-auto -left-3"
         )}
       >
@@ -108,19 +141,20 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
       </button>
 
       {/* Navigation */}
-      <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
+      <nav className="flex-1 p-3 md:p-4 space-y-1 md:space-y-2 overflow-y-auto">
         {visibleNavItems.map((item) => (
           <NavLink
             key={item.path}
             to={item.path}
+            onClick={handleNavClick}
             className={cn(
               "nav-item",
               isActive(item.path) && "active",
-              collapsed && "justify-center px-3"
+              (collapsed && !mobileOpen) && "justify-center px-3"
             )}
           >
             <item.icon className="w-5 h-5 flex-shrink-0" />
-            {!collapsed && <span className="truncate">{item.label}</span>}
+            {(!collapsed || mobileOpen) && <span className="truncate">{item.label}</span>}
           </NavLink>
         ))}
         
@@ -128,14 +162,15 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
         {profile?.is_influencer && (
           <NavLink
             to="/affiliate"
+            onClick={handleNavClick}
             className={cn(
               "nav-item mt-4 border-t border-sidebar-border pt-4",
               isActive('/affiliate') && "active",
-              collapsed && "justify-center px-3"
+              (collapsed && !mobileOpen) && "justify-center px-3"
             )}
           >
             <Award className="w-5 h-5 flex-shrink-0 text-primary" />
-            {!collapsed && <span className="truncate text-primary">{t('nav.affiliate')}</span>}
+            {(!collapsed || mobileOpen) && <span className="truncate text-primary">{t('nav.affiliate')}</span>}
           </NavLink>
         )}
         
@@ -143,24 +178,25 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
         {isAdmin && (
           <NavLink
             to="/admin"
+            onClick={handleNavClick}
             className={cn(
               "nav-item",
               profile?.is_influencer ? "" : "mt-4 border-t border-sidebar-border pt-4",
               isActive('/admin') && "active",
-              collapsed && "justify-center px-3"
+              (collapsed && !mobileOpen) && "justify-center px-3"
             )}
           >
             <ShieldCheck className="w-5 h-5 flex-shrink-0 text-warning" />
-            {!collapsed && <span className="truncate text-warning">{t('nav.admin')}</span>}
+            {(!collapsed || mobileOpen) && <span className="truncate text-warning">{t('nav.admin')}</span>}
           </NavLink>
         )}
       </nav>
 
       {/* User Section */}
-      <div className="p-4 border-t border-sidebar-border">
-        {!collapsed && profile && (
+      <div className="p-3 md:p-4 border-t border-sidebar-border">
+        {(!collapsed || mobileOpen) && profile && (
           <div className="flex items-center gap-3 mb-4 px-2">
-            <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-secondary flex items-center justify-center flex-shrink-0">
               <span className="text-sm font-medium text-foreground">
                 {profile.full_name?.charAt(0) || profile.email.charAt(0).toUpperCase()}
               </span>
@@ -176,14 +212,14 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, onToggle }) => {
           </div>
         )}
         <button
-          onClick={signOut}
+          onClick={handleSignOut}
           className={cn(
             "nav-item w-full text-destructive hover:bg-destructive/10",
-            collapsed && "justify-center px-3"
+            (collapsed && !mobileOpen) && "justify-center px-3"
           )}
         >
           <LogOut className="w-5 h-5 flex-shrink-0" />
-          {!collapsed && <span>{t('nav.logout')}</span>}
+          {(!collapsed || mobileOpen) && <span>{t('nav.logout')}</span>}
         </button>
       </div>
     </aside>

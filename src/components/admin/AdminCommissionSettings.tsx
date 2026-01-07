@@ -151,106 +151,187 @@ const AdminCommissionSettings: React.FC = () => {
 
   return (
     <Card className="glass-card">
-      <CardHeader>
-        <CardTitle className={cn("flex items-center gap-2", isRTL && "flex-row-reverse")}>
-          <Settings className="w-5 h-5 text-primary" />
+      <CardHeader className="p-4 md:p-6">
+        <CardTitle className={cn("flex items-center gap-2 text-base md:text-lg", isRTL && "flex-row-reverse")}>
+          <Settings className="w-4 h-4 md:w-5 md:h-5 text-primary" />
           {t('admin.commissionSettings')}
         </CardTitle>
-        <CardDescription>
+        <CardDescription className="text-xs md:text-sm">
           {t('admin.commissionSettingsDesc')}
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>{t('admin.planType')}</TableHead>
-              <TableHead>{t('admin.commissionAmount')}</TableHead>
-              <TableHead>{t('admin.status')}</TableHead>
-              <TableHead className="text-right">{t('admin.actions')}</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {settings?.map((setting) => (
-              <TableRow key={setting.id}>
-                <TableCell>
+      <CardContent className="p-4 md:p-6 pt-0 md:pt-0">
+        {/* Mobile: Cards Layout */}
+        <div className="md:hidden space-y-3">
+          {settings?.map((setting) => (
+            <div key={setting.id} className="bg-secondary/30 rounded-lg p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {getPlanBadge(setting.plan_type)}
+                  <span className="capitalize text-sm text-muted-foreground">
+                    {setting.plan_type}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Switch
+                    checked={setting.is_active}
+                    onCheckedChange={(checked) => 
+                      toggleActiveMutation.mutate({ id: setting.id, isActive: checked })
+                    }
+                    disabled={toggleActiveMutation.isPending}
+                  />
+                  <span className={cn(
+                    "text-xs",
+                    setting.is_active ? "text-primary" : "text-muted-foreground"
+                  )}>
+                    {setting.is_active ? t('admin.active') : t('admin.inactive')}
+                  </span>
+                </div>
+              </div>
+              
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">{t('admin.commissionAmount')}</span>
+                {editingId === setting.id ? (
                   <div className="flex items-center gap-2">
-                    {getPlanBadge(setting.plan_type)}
-                    <span className="capitalize text-muted-foreground">
-                      {setting.plan_type}
-                    </span>
+                    <span className="text-muted-foreground">$</span>
+                    <Input
+                      type="number"
+                      value={editingAmount}
+                      onChange={(e) => setEditingAmount(e.target.value)}
+                      className="w-20 input-executive h-8 text-sm"
+                      step="0.01"
+                      min="0"
+                    />
+                    <Button
+                      size="sm"
+                      onClick={handleSaveEdit}
+                      disabled={updateAmountMutation.isPending}
+                      className="btn-premium h-8 w-8 p-0"
+                    >
+                      <Save className="w-3 h-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleCancelEdit}
+                      className="h-8 w-8 p-0"
+                    >
+                      ×
+                    </Button>
                   </div>
-                </TableCell>
-                <TableCell>
-                  {editingId === setting.id ? (
-                    <div className="flex items-center gap-2">
-                      <span className="text-muted-foreground">$</span>
-                      <Input
-                        type="number"
-                        value={editingAmount}
-                        onChange={(e) => setEditingAmount(e.target.value)}
-                        className="w-24 input-executive"
-                        step="0.01"
-                        min="0"
-                      />
-                      <Button
-                        size="sm"
-                        onClick={handleSaveEdit}
-                        disabled={updateAmountMutation.isPending}
-                        className="btn-premium"
-                      >
-                        <Save className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={handleCancelEdit}
-                      >
-                        ×
-                      </Button>
-                    </div>
-                  ) : (
+                ) : (
+                  <div className="flex items-center gap-2">
                     <span className="font-bold text-primary text-lg">
                       ${setting.commission_amount.toFixed(2)}
                     </span>
-                  )}
-                </TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <Switch
-                      checked={setting.is_active}
-                      onCheckedChange={(checked) => 
-                        toggleActiveMutation.mutate({ id: setting.id, isActive: checked })
-                      }
-                      disabled={toggleActiveMutation.isPending}
-                    />
-                    <span className={cn(
-                      "text-sm",
-                      setting.is_active ? "text-primary" : "text-muted-foreground"
-                    )}>
-                      {setting.is_active ? t('admin.active') : t('admin.inactive')}
-                    </span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-right">
-                  {editingId !== setting.id && (
                     <Button
                       size="sm"
                       variant="ghost"
                       onClick={() => handleStartEdit(setting)}
+                      className="h-8 px-2"
                     >
-                      <DollarSign className="w-4 h-4 mr-1" />
-                      {t('admin.editCommission')}
+                      <DollarSign className="w-3 h-3" />
                     </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
 
-        <div className="mt-4 p-4 bg-secondary/30 rounded-lg">
-          <p className="text-sm text-muted-foreground">
+        {/* Desktop: Table Layout */}
+        <div className="hidden md:block overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t('admin.planType')}</TableHead>
+                <TableHead>{t('admin.commissionAmount')}</TableHead>
+                <TableHead>{t('admin.status')}</TableHead>
+                <TableHead className="text-right">{t('admin.actions')}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {settings?.map((setting) => (
+                <TableRow key={setting.id}>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {getPlanBadge(setting.plan_type)}
+                      <span className="capitalize text-muted-foreground">
+                        {setting.plan_type}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {editingId === setting.id ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-muted-foreground">$</span>
+                        <Input
+                          type="number"
+                          value={editingAmount}
+                          onChange={(e) => setEditingAmount(e.target.value)}
+                          className="w-24 input-executive"
+                          step="0.01"
+                          min="0"
+                        />
+                        <Button
+                          size="sm"
+                          onClick={handleSaveEdit}
+                          disabled={updateAmountMutation.isPending}
+                          className="btn-premium"
+                        >
+                          <Save className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={handleCancelEdit}
+                        >
+                          ×
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="font-bold text-primary text-lg">
+                        ${setting.commission_amount.toFixed(2)}
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        checked={setting.is_active}
+                        onCheckedChange={(checked) => 
+                          toggleActiveMutation.mutate({ id: setting.id, isActive: checked })
+                        }
+                        disabled={toggleActiveMutation.isPending}
+                      />
+                      <span className={cn(
+                        "text-sm",
+                        setting.is_active ? "text-primary" : "text-muted-foreground"
+                      )}>
+                        {setting.is_active ? t('admin.active') : t('admin.inactive')}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {editingId !== setting.id && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleStartEdit(setting)}
+                      >
+                        <DollarSign className="w-4 h-4 mr-1" />
+                        {t('admin.editCommission')}
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+
+        <div className="mt-4 p-3 md:p-4 bg-secondary/30 rounded-lg">
+          <p className="text-xs md:text-sm text-muted-foreground">
             <strong>{t('admin.note')}:</strong> {t('admin.commissionNote')}
           </p>
         </div>
