@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Settings as SettingsIcon, User, Globe, Bell, Shield, Database, Trash2, RefreshCw } from 'lucide-react';
 import { useLanguage, LanguageCode } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import ReferralCodeInput from '@/components/settings/ReferralCodeInput';
 import ReferrerInfoCard from '@/components/settings/ReferrerInfoCard';
+
 const languages: {
   code: LanguageCode;
   name: string;
@@ -46,6 +47,7 @@ const languages: {
   name: 'العربية',
   flag: '🇸🇦'
 }];
+
 const Settings: React.FC = () => {
   const {
     t,
@@ -54,7 +56,8 @@ const Settings: React.FC = () => {
     isRTL
   } = useLanguage();
   const {
-    profile
+    profile,
+    refreshProfile
   } = useAuth();
   const {
     role
@@ -62,13 +65,57 @@ const Settings: React.FC = () => {
   const {
     toast
   } = useToast();
+  
+  // Profile form state
+  const [fullName, setFullName] = useState(profile?.full_name || '');
+  const [savingProfile, setSavingProfile] = useState(false);
+  
   const [isClearingCache, setIsClearingCache] = useState(false);
   const [showClearCacheDialog, setShowClearCacheDialog] = useState(false);
   const [cacheStats, setCacheStats] = useState<{
     total: number;
     expired: number;
   } | null>(null);
+  
   const isAdmin = role === 'owner' || role === 'admin';
+  
+  // Update local state when profile changes
+  useEffect(() => {
+    if (profile?.full_name) {
+      setFullName(profile.full_name);
+    }
+  }, [profile?.full_name]);
+  
+  const handleSaveProfile = async () => {
+    if (!profile?.id) return;
+    setSavingProfile(true);
+    
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ full_name: fullName })
+        .eq('id', profile.id);
+      
+      if (error) throw error;
+      
+      // Refresh profile to update the UI
+      await refreshProfile();
+      
+      toast({
+        title: t('settings.profileUpdated'),
+        description: t('settings.profileUpdatedDesc'),
+      });
+    } catch (error) {
+      console.error('Error saving profile:', error);
+      toast({
+        title: t('common.error'),
+        description: 'Failed to save profile',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingProfile(false);
+    }
+  };
   const fetchCacheStats = async () => {
     const {
       data,
@@ -162,7 +209,12 @@ const Settings: React.FC = () => {
               <label className="text-xs sm:text-sm text-muted-foreground mb-1.5 sm:mb-2 block">
                 Full Name
               </label>
-              <Input defaultValue={profile?.full_name || ''} className="input-executive" placeholder="Your full name" />
+              <Input 
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                className="input-executive" 
+                placeholder="Your full name" 
+              />
             </div>
             <div>
               <label className="text-xs sm:text-sm text-muted-foreground mb-1.5 sm:mb-2 block">
@@ -171,8 +223,12 @@ const Settings: React.FC = () => {
               <Input defaultValue={profile?.email || ''} className="input-executive" disabled />
             </div>
           </div>
-          <Button className="btn-premium text-primary-foreground w-full sm:w-auto">
-            {t('common.save')} Changes
+          <Button 
+            onClick={handleSaveProfile}
+            disabled={savingProfile || fullName === profile?.full_name}
+            className="btn-premium text-primary-foreground w-full sm:w-auto"
+          >
+            {savingProfile ? t('common.loading') : `${t('common.save')} Changes`}
           </Button>
         </div>
       </div>

@@ -17,6 +17,7 @@ interface Profile {
   plan_type: string;
   payment_status: string;
   available_balance: number | null;
+  financial_goal: number | null;
 }
 
 interface AuthContextType {

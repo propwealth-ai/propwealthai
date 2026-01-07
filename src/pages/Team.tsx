@@ -16,7 +16,11 @@ import {
   EyeOff,
   Key,
   User,
-  Lock
+  Lock,
+  MoreVertical,
+  Pencil,
+  Trash2,
+  X
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -38,6 +42,22 @@ import {
   DialogTrigger,
   DialogDescription,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
@@ -121,8 +141,25 @@ const Team: React.FC = () => {
   // Created member credentials
   const [createdCredentials, setCreatedCredentials] = useState<CreatedMemberCredentials | null>(null);
   const [showCreatedPassword, setShowCreatedPassword] = useState(false);
+  
+  // Edit member state
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
+  const [editMemberRole, setEditMemberRole] = useState<string>('member');
+  const [updating, setUpdating] = useState(false);
+  
+  // Remove member state
+  const [removeMemberDialogOpen, setRemoveMemberDialogOpen] = useState(false);
+  const [memberToRemove, setMemberToRemove] = useState<TeamMember | null>(null);
+  const [removing, setRemoving] = useState(false);
+  
+  // Cancel invitation state
+  const [cancelInviteDialogOpen, setCancelInviteDialogOpen] = useState(false);
+  const [invitationToCancel, setInvitationToCancel] = useState<Invitation | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   const roles = [
+    { value: 'admin', label: t('role.admin') },
     { value: 'shark_agent', label: t('role.shark_agent') },
     { value: 'contractor', label: t('role.contractor') },
     { value: 'lender', label: t('role.lender') },
@@ -283,6 +320,69 @@ Welcome to the team! 🚀`;
       title: 'Link Copied!',
       description: 'Invitation link copied to clipboard',
     });
+  };
+
+  const handleEditMember = (member: TeamMember) => {
+    setEditingMember(member);
+    setEditMemberRole(member.team_role);
+    setEditDialogOpen(true);
+  };
+
+  const handleUpdateMember = async () => {
+    if (!editingMember) return;
+    setUpdating(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ team_role: editMemberRole as any })
+        .eq('id', editingMember.id);
+      if (error) throw error;
+      toast({ title: t('team.memberUpdated'), description: t('team.memberUpdatedDesc') });
+      fetchTeamData();
+      setEditDialogOpen(false);
+    } catch (error) {
+      toast({ title: t('common.error'), description: 'Failed to update member', variant: 'destructive' });
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const handleRemoveMember = async () => {
+    if (!memberToRemove) return;
+    setRemoving(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ team_id: null, team_role: 'member' })
+        .eq('id', memberToRemove.id);
+      if (error) throw error;
+      toast({ title: t('team.memberRemoved'), description: t('team.memberRemovedDesc') });
+      fetchTeamData();
+      setRemoveMemberDialogOpen(false);
+    } catch (error) {
+      toast({ title: t('common.error'), description: 'Failed to remove member', variant: 'destructive' });
+    } finally {
+      setRemoving(false);
+    }
+  };
+
+  const handleCancelInvitation = async () => {
+    if (!invitationToCancel) return;
+    setCancelling(true);
+    try {
+      const { error } = await supabase
+        .from('team_invitations')
+        .delete()
+        .eq('id', invitationToCancel.id);
+      if (error) throw error;
+      toast({ title: t('team.invitationCancelled'), description: t('team.invitationCancelledDesc') });
+      fetchTeamData();
+      setCancelInviteDialogOpen(false);
+    } catch (error) {
+      toast({ title: t('common.error'), description: 'Failed to cancel invitation', variant: 'destructive' });
+    } finally {
+      setCancelling(false);
+    }
   };
 
   const isOwner = profile?.team_role === 'owner';
@@ -568,16 +668,37 @@ Welcome to the team! 🚀`;
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {members.map((member, index) => {
               const RoleIcon = roleIcons[member.team_role] || Users;
+              const canEdit = isOwner && member.team_role !== 'owner';
               
               return (
                 <div
                   key={member.id}
                   className={cn(
-                    "p-4 bg-secondary/50 rounded-lg animate-fade-in",
+                    "p-4 bg-secondary/50 rounded-lg animate-fade-in relative",
                     isRTL && "text-right"
                   )}
                   style={{ animationDelay: `${index * 100}ms` }}
                 >
+                  {canEdit && (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="absolute top-2 right-2 h-8 w-8">
+                          <MoreVertical className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="bg-popover border-border">
+                        <DropdownMenuItem onClick={() => handleEditMember(member)}>
+                          <Pencil className="w-4 h-4 mr-2" /> {t('team.editMember')}
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          onClick={() => { setMemberToRemove(member); setRemoveMemberDialogOpen(true); }}
+                          className="text-destructive"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" /> {t('team.removeMember')}
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                   <div className={cn("flex items-center gap-4", isRTL && "flex-row-reverse")}>
                     <div className="team-avatar flex items-center justify-center bg-secondary shrink-0">
                       <span className="text-lg font-bold text-foreground">
