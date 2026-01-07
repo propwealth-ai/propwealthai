@@ -103,14 +103,14 @@ const Auth: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-6 py-12 relative">
+    <div className="min-h-screen bg-background flex items-center justify-center px-4 md:px-6 py-8 md:py-12 relative">
       {/* Back to Home Button */}
       <Link 
         to="/" 
-        className="absolute top-6 left-6 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+        className="absolute top-4 md:top-6 left-4 md:left-6 flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
       >
         <ArrowLeft className="w-4 h-4" />
-        <span className="text-sm">{t('common.back')}</span>
+        <span className="text-xs md:text-sm">{t('common.back')}</span>
       </Link>
       
       <div className="w-full max-w-6xl mx-auto flex flex-col lg:flex-row lg:items-center lg:gap-16 xl:gap-24">
@@ -189,34 +189,34 @@ const Auth: React.FC = () => {
         )}>
           <div className="w-full max-w-md">
             {/* Mobile Logo */}
-            <div className="lg:hidden flex items-center gap-3 mb-8 justify-center">
+            <div className="lg:hidden flex items-center gap-3 mb-6 md:mb-8 justify-center">
               <img 
                 src={LOGO_URL} 
                 alt="PropWealth AI Logo" 
-                className="w-12 h-12 rounded-xl object-contain"
+                className="w-10 h-10 md:w-12 md:h-12 rounded-xl object-contain"
               />
               <div>
-                <h1 className="text-2xl font-bold text-foreground">PropWealth AI</h1>
-                <p className="text-xs text-muted-foreground">AI Investment OS</p>
+                <h1 className="text-xl md:text-2xl font-bold text-foreground">PropWealth AI</h1>
+                <p className="text-[10px] md:text-xs text-muted-foreground">AI Investment OS</p>
               </div>
             </div>
 
-            <div className="glass-card p-8 rounded-2xl border border-border/50">
-              <h2 className="text-2xl font-bold text-foreground mb-2">
+            <div className="glass-card p-5 md:p-8 rounded-xl md:rounded-2xl border border-border/50">
+              <h2 className="text-xl md:text-2xl font-bold text-foreground mb-2">
                 {isSignUp ? t('auth.createAccount') : t('auth.welcomeBack')}
               </h2>
-              <p className="text-muted-foreground mb-6">
+              <p className="text-sm md:text-base text-muted-foreground mb-4 md:mb-6">
                 {isSignUp 
                   ? t('auth.signupSubtitle')
                   : t('auth.signinSubtitle')
                 }
               </p>
 
-              <form onSubmit={handleSubmit} className="space-y-4">
+              <form onSubmit={handleSubmit} className="space-y-3 md:space-y-4">
                 {isSignUp && (
                   <div className="relative">
                     <User className={cn(
-                      "absolute top-3 w-5 h-5 text-muted-foreground",
+                      "absolute top-2.5 md:top-3 w-4 h-4 md:w-5 md:h-5 text-muted-foreground",
                       isRTL ? "right-3" : "left-3"
                     )} />
                     <Input
@@ -224,7 +224,7 @@ const Auth: React.FC = () => {
                       placeholder={t('auth.fullName')}
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      className={cn("input-executive h-12", isRTL ? "pr-10" : "pl-10")}
+                      className={cn("input-executive h-10 md:h-12 text-sm md:text-base", isRTL ? "pr-10" : "pl-10")}
                       required
                     />
                   </div>
@@ -232,7 +232,7 @@ const Auth: React.FC = () => {
 
                 <div className="relative">
                   <Mail className={cn(
-                    "absolute top-3 w-5 h-5 text-muted-foreground",
+                    "absolute top-2.5 md:top-3 w-4 h-4 md:w-5 md:h-5 text-muted-foreground",
                     isRTL ? "right-3" : "left-3"
                   )} />
                   <Input
@@ -240,14 +240,14 @@ const Auth: React.FC = () => {
                     placeholder={t('auth.email')}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className={cn("input-executive h-12", isRTL ? "pr-10" : "pl-10")}
+                    className={cn("input-executive h-10 md:h-12 text-sm md:text-base", isRTL ? "pr-10" : "pl-10")}
                     required
                   />
                 </div>
 
                 <div className="relative">
                   <Lock className={cn(
-                    "absolute top-3 w-5 h-5 text-muted-foreground",
+                    "absolute top-2.5 md:top-3 w-4 h-4 md:w-5 md:h-5 text-muted-foreground",
                     isRTL ? "right-3" : "left-3"
                   )} />
                   <Input
@@ -255,7 +255,7 @@ const Auth: React.FC = () => {
                     placeholder={t('auth.password')}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className={cn("input-executive h-12", isRTL ? "pr-10" : "pl-10")}
+                    className={cn("input-executive h-10 md:h-12 text-sm md:text-base", isRTL ? "pr-10" : "pl-10")}
                     required
                     minLength={6}
                   />
@@ -265,7 +265,7 @@ const Auth: React.FC = () => {
                 {isSignUp && (
                   <div className="relative">
                     <Tag className={cn(
-                      "absolute top-3 w-5 h-5 text-muted-foreground",
+                      "absolute top-2.5 md:top-3 w-4 h-4 md:w-5 md:h-5 text-muted-foreground",
                       isRTL ? "right-3" : "left-3"
                     )} />
                     <Input
@@ -273,17 +273,17 @@ const Auth: React.FC = () => {
                       placeholder={t('auth.referralCodePlaceholder')}
                       value={referralCode}
                       onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
-                      className={cn("input-executive h-12", isRTL ? "pr-10" : "pl-10")}
+                      className={cn("input-executive h-10 md:h-12 text-sm md:text-base", isRTL ? "pr-10" : "pl-10")}
                     />
                     {referralCode && (
-                      <CheckCircle className="absolute right-3 top-3 w-5 h-5 text-primary" />
+                      <CheckCircle className="absolute right-3 top-2.5 md:top-3 w-4 h-4 md:w-5 md:h-5 text-primary" />
                     )}
                   </div>
                 )}
 
                 <Button 
                   type="submit" 
-                  className="w-full h-12 btn-premium text-primary-foreground font-semibold"
+                  className="w-full h-10 md:h-12 btn-premium text-primary-foreground font-semibold text-sm md:text-base"
                   disabled={loading}
                 >
                   {loading ? t('common.loading') : (
@@ -295,8 +295,8 @@ const Auth: React.FC = () => {
                 </Button>
               </form>
 
-              <div className="mt-6 text-center">
-                <p className="text-muted-foreground">
+              <div className="mt-4 md:mt-6 text-center">
+                <p className="text-sm text-muted-foreground">
                   {isSignUp ? t('auth.haveAccount') : t('auth.noAccount')}{' '}
                   <button
                     type="button"
@@ -310,7 +310,7 @@ const Auth: React.FC = () => {
             </div>
 
             {/* Footer Note */}
-            <p className="text-center text-xs text-muted-foreground mt-6">
+            <p className="text-center text-[10px] md:text-xs text-muted-foreground mt-4 md:mt-6">
               {t('auth.termsNote')}
             </p>
           </div>

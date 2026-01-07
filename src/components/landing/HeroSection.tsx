@@ -9,7 +9,7 @@ const HeroSection: React.FC = () => {
   const { t } = useLanguage();
 
   return (
-    <section className="relative min-h-[90vh] flex items-center overflow-hidden">
+    <section className="relative min-h-[85vh] md:min-h-[90vh] flex items-center overflow-hidden pt-16 md:pt-20">
       {/* Background Effects */}
       <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-background to-background"></div>
       <div 
@@ -22,61 +22,61 @@ const HeroSection: React.FC = () => {
       ></div>
       
       {/* Floating Orbs */}
-      <div className="absolute top-20 left-10 w-72 h-72 bg-primary/20 rounded-full blur-3xl animate-pulse"></div>
-      <div className="absolute bottom-20 right-10 w-96 h-96 bg-primary/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
+      <div className="absolute top-20 left-10 w-48 md:w-72 h-48 md:h-72 bg-primary/20 rounded-full blur-3xl animate-pulse"></div>
+      <div className="absolute bottom-20 right-10 w-64 md:w-96 h-64 md:h-96 bg-primary/10 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }}></div>
 
-      <div className="container mx-auto px-6 relative z-10">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
+      <div className="container mx-auto px-4 md:px-6 relative z-10">
+        <div className="grid lg:grid-cols-2 gap-8 md:gap-12 items-center">
           {/* Left Content */}
-          <div className="space-y-8">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20">
+          <div className="space-y-5 md:space-y-8 text-center lg:text-left">
+            <div className="inline-flex items-center gap-2 px-3 md:px-4 py-1.5 md:py-2 rounded-full bg-primary/10 border border-primary/20">
               <span className="w-2 h-2 bg-primary rounded-full animate-pulse"></span>
-              <span className="text-sm text-primary font-medium">{t('landing.badge')}</span>
+              <span className="text-xs md:text-sm text-primary font-medium">{t('landing.badge')}</span>
             </div>
 
-            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight">
               {t('landing.heroTitle')}{' '}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary to-emerald-400">
                 {t('landing.heroTitleHighlight')}
               </span>
             </h1>
 
-            <p className="text-lg md:text-xl text-muted-foreground max-w-xl leading-relaxed">
+            <p className="text-base md:text-lg lg:text-xl text-muted-foreground max-w-xl mx-auto lg:mx-0 leading-relaxed">
               {t('landing.heroSubtitle')}
             </p>
 
-            <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex flex-col sm:flex-row gap-3 md:gap-4 justify-center lg:justify-start">
               <Button 
                 size="lg" 
-                className="btn-premium text-primary-foreground font-semibold h-14 px-8 text-lg"
+                className="btn-premium text-primary-foreground font-semibold h-12 md:h-14 px-6 md:px-8 text-base md:text-lg"
                 onClick={() => navigate('/auth')}
               >
                 {t('landing.ctaPrimary')}
-                <ArrowRight className="ml-2 w-5 h-5" />
+                <ArrowRight className="ml-2 w-4 h-4 md:w-5 md:h-5" />
               </Button>
               <Button 
                 size="lg" 
                 variant="outline" 
-                className="h-14 px-8 text-lg border-border/50 hover:bg-muted/50"
+                className="h-12 md:h-14 px-6 md:px-8 text-base md:text-lg border-border/50 hover:bg-muted/50"
               >
-                <Play className="mr-2 w-5 h-5" />
+                <Play className="mr-2 w-4 h-4 md:w-5 md:h-5" />
                 {t('landing.ctaSecondary')}
               </Button>
             </div>
 
             {/* Quick Stats */}
-            <div className="flex items-center gap-8 pt-4">
-              <div className="flex -space-x-3">
+            <div className="flex items-center gap-4 md:gap-8 pt-4 justify-center lg:justify-start">
+              <div className="flex -space-x-2 md:-space-x-3">
                 {[1, 2, 3, 4].map((i) => (
                   <div 
                     key={i}
-                    className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-emerald-600 border-2 border-background flex items-center justify-center text-xs font-bold text-primary-foreground"
+                    className="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gradient-to-br from-primary to-emerald-600 border-2 border-background flex items-center justify-center text-xs font-bold text-primary-foreground"
                   >
                     {String.fromCharCode(64 + i)}
                   </div>
                 ))}
               </div>
-              <p className="text-sm text-muted-foreground">
+              <p className="text-xs md:text-sm text-muted-foreground">
                 <span className="text-foreground font-semibold">500+</span> {t('landing.investorsJoined')}
               </p>
             </div>
