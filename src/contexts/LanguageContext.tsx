@@ -81,7 +81,11 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     
     // Team Actions
     'team.editMember': 'Edit Member',
+    'team.editMemberDesc': 'Change the role of this team member',
     'team.removeMember': 'Remove Member',
+    'team.removeMemberTitle': 'Remove Team Member',
+    'team.removeMemberConfirm': 'Are you sure you want to remove',
+    'team.removeMemberWarning': ' They will lose access to all team data.',
     'team.confirmRemove': 'Remove this member from your team?',
     'team.confirmRemoveDesc': 'This will revoke their access to your team data.',
     'team.memberRemoved': 'Member Removed',
@@ -89,6 +93,8 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'team.memberUpdated': 'Member Updated',
     'team.memberUpdatedDesc': 'The team member has been updated successfully',
     'team.cancelInvitation': 'Cancel Invitation',
+    'team.cancelInvitationTitle': 'Cancel Invitation',
+    'team.cancelInvitationConfirm': 'Are you sure you want to cancel the invitation for',
     'team.invitationCancelled': 'Invitation Cancelled',
     'team.invitationCancelledDesc': 'The pending invitation has been cancelled',
     
@@ -704,7 +710,11 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     
     // Team Actions PT
     'team.editMember': 'Editar Membro',
+    'team.editMemberDesc': 'Alterar a função deste membro da equipa',
     'team.removeMember': 'Remover Membro',
+    'team.removeMemberTitle': 'Remover Membro da Equipa',
+    'team.removeMemberConfirm': 'Tem a certeza de que deseja remover',
+    'team.removeMemberWarning': ' Perderá o acesso a todos os dados da equipa.',
     'team.confirmRemove': 'Remover este membro da sua equipa?',
     'team.confirmRemoveDesc': 'Isto irá revogar o acesso aos dados da sua equipa.',
     'team.memberRemoved': 'Membro Removido',
@@ -712,6 +722,8 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'team.memberUpdated': 'Membro Atualizado',
     'team.memberUpdatedDesc': 'O membro da equipa foi atualizado com sucesso',
     'team.cancelInvitation': 'Cancelar Convite',
+    'team.cancelInvitationTitle': 'Cancelar Convite',
+    'team.cancelInvitationConfirm': 'Tem a certeza de que deseja cancelar o convite para',
     'team.invitationCancelled': 'Convite Cancelado',
     'team.invitationCancelledDesc': 'O convite pendente foi cancelado',
     

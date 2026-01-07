@@ -773,12 +773,134 @@ Welcome to the team! 🚀`;
                       <Copy className="w-4 h-4" />
                     )}
                   </Button>
+                  {isOwner && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => { setInvitationToCancel(invitation); setCancelInviteDialogOpen(true); }}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      {/* Edit Member Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent className="bg-card border-border max-w-md mx-4 sm:mx-auto">
+          <DialogHeader>
+            <DialogTitle className="text-foreground flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-primary" />
+              {t('team.editMember')}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              {t('team.editMemberDesc')}
+            </DialogDescription>
+          </DialogHeader>
+          {editingMember && (
+            <div className="space-y-4 mt-4">
+              <div className="flex items-center gap-4 p-4 bg-secondary/50 rounded-lg">
+                <div className="team-avatar flex items-center justify-center bg-secondary shrink-0">
+                  <span className="text-lg font-bold text-foreground">
+                    {editingMember.full_name?.charAt(0) || editingMember.email.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <p className="font-medium text-foreground">{editingMember.full_name || 'Team Member'}</p>
+                  <p className="text-sm text-muted-foreground">{editingMember.email}</p>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm text-muted-foreground mb-2 block">
+                  {t('team.role')}
+                </label>
+                <Select value={editMemberRole} onValueChange={setEditMemberRole}>
+                  <SelectTrigger className="input-executive">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-popover border-border">
+                    {roles.map((role) => (
+                      <SelectItem key={role.value} value={role.value}>
+                        {role.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex gap-3 pt-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setEditDialogOpen(false)}
+                  className="flex-1"
+                >
+                  {t('common.cancel')}
+                </Button>
+                <Button
+                  onClick={handleUpdateMember}
+                  disabled={updating}
+                  className="flex-1 btn-premium text-primary-foreground"
+                >
+                  {updating ? t('common.loading') : t('common.save')}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Remove Member Confirmation */}
+      <AlertDialog open={removeMemberDialogOpen} onOpenChange={setRemoveMemberDialogOpen}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">
+              {t('team.removeMemberTitle')}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              {t('team.removeMemberConfirm')} <strong>{memberToRemove?.full_name || memberToRemove?.email}</strong>? 
+              {t('team.removeMemberWarning')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={removing}>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleRemoveMember}
+              disabled={removing}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {removing ? t('common.loading') : t('team.removeMember')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Cancel Invitation Confirmation */}
+      <AlertDialog open={cancelInviteDialogOpen} onOpenChange={setCancelInviteDialogOpen}>
+        <AlertDialogContent className="bg-card border-border">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-foreground">
+              {t('team.cancelInvitationTitle')}
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-muted-foreground">
+              {t('team.cancelInvitationConfirm')} <strong>{invitationToCancel?.name || invitationToCancel?.email}</strong>?
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={cancelling}>{t('common.cancel')}</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={handleCancelInvitation}
+              disabled={cancelling}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {cancelling ? t('common.loading') : t('team.cancelInvitation')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

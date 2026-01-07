@@ -6,7 +6,9 @@ import {
   BarChart3,
   Building2,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Pencil,
+  Target
 } from 'lucide-react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +18,16 @@ import { cn } from '@/lib/utils';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import ExportPDFButton from '@/components/analytics/ExportPDFButton';
 import RoadToMillionCard from '@/components/dashboard/RoadToMillionCard';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 import {
   LineChart,
   Line,
@@ -51,10 +63,18 @@ const COLORS = ['hsl(160, 84%, 39%)', 'hsl(217, 91%, 60%)', 'hsl(280, 87%, 65%)'
 
 const Analytics: React.FC = () => {
   const { t, isRTL } = useLanguage();
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
+  const { toast } = useToast();
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const chartsRef = useRef<HTMLDivElement>(null);
+  
+  // Financial Goal State
+  const [goalDialogOpen, setGoalDialogOpen] = useState(false);
+  const [newGoal, setNewGoal] = useState('');
+  const [savingGoal, setSavingGoal] = useState(false);
+  
+  const financialGoal = profile?.financial_goal || 1000000;
 
   useEffect(() => {
     if (profile?.team_id) {
@@ -72,6 +92,49 @@ const Analytics: React.FC = () => {
       setProperties(data as Property[]);
     }
     setLoading(false);
+  };
+  
+  const handleSaveGoal = async () => {
+    if (!profile?.id || !newGoal) return;
+    
+    const goalValue = parseFloat(newGoal.replace(/[^0-9.]/g, ''));
+    if (isNaN(goalValue) || goalValue < 10000) {
+      toast({
+        title: t('common.error'),
+        description: 'Please enter a valid goal (minimum $10,000)',
+        variant: 'destructive',
+      });
+      return;
+    }
+    
+    setSavingGoal(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ financial_goal: goalValue })
+        .eq('id', profile.id);
+        
+      if (error) throw error;
+      
+      await refreshProfile();
+      
+      toast({
+        title: t('dashboard.goalUpdated'),
+        description: t('dashboard.goalUpdatedDesc'),
+      });
+      
+      setGoalDialogOpen(false);
+      setNewGoal('');
+    } catch (error) {
+      console.error('Error saving goal:', error);
+      toast({
+        title: t('common.error'),
+        description: 'Failed to update goal',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingGoal(false);
+    }
   };
 
   // Calculate portfolio metrics
@@ -218,8 +281,75 @@ const Analytics: React.FC = () => {
         />
       </div>
 
-      {/* Road to $1M Card */}
-      <RoadToMillionCard currentNetWorth={totalValue} />
+      {/* Road to Goal Card with Edit Button */}
+      <div className="relative">
+        <RoadToMillionCard currentNetWorth={totalValue} goalAmount={financialGoal} />
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => { setNewGoal(financialGoal.toString()); setGoalDialogOpen(true); }}
+          className="absolute top-4 right-4 text-muted-foreground hover:text-foreground"
+        >
+          <Pencil className="w-4 h-4 mr-1" />
+          {t('dashboard.editGoal')}
+        </Button>
+      </div>
+      
+      {/* Edit Goal Dialog */}
+      <Dialog open={goalDialogOpen} onOpenChange={setGoalDialogOpen}>
+        <DialogContent className="bg-card border-border max-w-md mx-4 sm:mx-auto">
+          <DialogHeader>
+            <DialogTitle className="text-foreground flex items-center gap-2">
+              <Target className="w-5 h-5 text-primary" />
+              {t('dashboard.setFinancialGoal')}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              {t('dashboard.remainingToGoal').replace(':', '')}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <label className="text-sm text-muted-foreground mb-2 block">
+                {t('dashboard.roadToMillion')}
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">$</span>
+                <Input
+                  type="text"
+                  value={newGoal}
+                  onChange={(e) => setNewGoal(e.target.value.replace(/[^0-9]/g, ''))}
+                  className="input-executive pl-8"
+                  placeholder="1000000"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                {newGoal && !isNaN(parseInt(newGoal)) ? (
+                  <>
+                    ${parseInt(newGoal).toLocaleString()} 
+                    {parseInt(newGoal) >= 1000000 ? ' 🎯' : ''}
+                  </>
+                ) : 'Minimum: $10,000'}
+              </p>
+            </div>
+            <div className="flex gap-3 pt-2">
+              <Button
+                variant="outline"
+                onClick={() => setGoalDialogOpen(false)}
+                className="flex-1"
+              >
+                {t('common.cancel')}
+              </Button>
+              <Button
+                onClick={handleSaveGoal}
+                disabled={savingGoal || !newGoal}
+                className="flex-1 btn-premium text-primary-foreground"
+              >
+                {savingGoal ? t('common.loading') : t('common.save')}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
