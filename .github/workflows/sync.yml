@@ -1,0 +1,26 @@
+name: Sincronizar com Repositório Vercel
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do código original
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push para o repositório cópia
+        uses: cpina/github-action-push-to-another-repository@main
+        env:
+          API_TOKEN_GITHUB: ${{ secrets.API_TOKEN_GITHUB }}
+        with:
+          source-directory: '.'
+          destination-github-username: 'dravoai'
+          destination-repository-name: 'propwealthaireal'
+          user-email: 'mariopereiradasilvamanuel@gmail.com'
+          target-branch: 'main'
