@@ -98,8 +98,8 @@ const LandingNavbar: React.FC = () => {
 
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
-          <div className="md:hidden py-4 border-t border-border/50">
-            <div className="flex flex-col gap-4">
+          <div className="md:hidden absolute top-full left-0 right-0 bg-background border-b border-border/50 shadow-xl">
+            <div className="flex flex-col gap-4 px-6 py-4">
               {navLinks.map((link) => (
                 <a 
                   key={link.href}
