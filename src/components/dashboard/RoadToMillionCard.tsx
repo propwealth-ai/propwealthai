@@ -25,14 +25,30 @@ const RoadToMillionCard: React.FC<RoadToMillionCardProps> = ({
   const progress = Math.min((currentNetWorth / goalAmount) * 100, 100);
   const remaining = Math.max(goalAmount - currentNetWorth, 0);
   
-  const milestones: MilestoneType[] = [
-    { value: 50000, label: '$50K', icon: Star, reached: currentNetWorth >= 50000 },
-    { value: 100000, label: '$100K', icon: Milestone, reached: currentNetWorth >= 100000 },
-    { value: 250000, label: '$250K', icon: Milestone, reached: currentNetWorth >= 250000 },
-    { value: 500000, label: '$500K', icon: TrendingUp, reached: currentNetWorth >= 500000 },
-    { value: 750000, label: '$750K', icon: TrendingUp, reached: currentNetWorth >= 750000 },
-    { value: 1000000, label: '$1M', icon: Trophy, reached: currentNetWorth >= 1000000 },
-  ];
+  // Format goal amount for display
+  const formatGoalLabel = (value: number) => {
+    if (value >= 1000000) {
+      return `$${(value / 1000000).toFixed(value % 1000000 === 0 ? 0 : 1)}M`;
+    }
+    return `$${(value / 1000).toFixed(0)}K`;
+  };
+  
+  // Generate dynamic milestones based on goal
+  const generateMilestones = (): MilestoneType[] => {
+    const steps = [0.05, 0.1, 0.25, 0.5, 0.75, 1];
+    return steps.map((step, index) => {
+      const value = goalAmount * step;
+      const icons = [Star, Milestone, Milestone, TrendingUp, TrendingUp, Trophy];
+      return {
+        value,
+        label: formatGoalLabel(value),
+        icon: icons[index],
+        reached: currentNetWorth >= value
+      };
+    });
+  };
+  
+  const milestones = generateMilestones();
 
   const nextMilestone = milestones.find(m => !m.reached) || milestones[milestones.length - 1];
   const toNextMilestone = Math.max(nextMilestone.value - currentNetWorth, 0);
@@ -71,7 +87,7 @@ const RoadToMillionCard: React.FC<RoadToMillionCardProps> = ({
           <span className="text-2xl sm:text-4xl font-bold text-money">
             ${currentNetWorth.toLocaleString()}
           </span>
-          <span className="text-sm text-muted-foreground">/ ${(goalAmount / 1000000).toFixed(0)}M</span>
+          <span className="text-sm text-muted-foreground">/ {formatGoalLabel(goalAmount)}</span>
         </div>
       </div>
 
