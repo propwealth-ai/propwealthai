@@ -65,17 +65,17 @@ const Blog: React.FC = () => {
 
       <div className="min-h-screen bg-background">
         {/* Header */}
-        <header className="border-b border-border/50">
-          <div className="container mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <Link to="/" className="flex items-center gap-3">
-                <img src={LOGO_URL} alt="PropWealth AI" className="w-10 h-10 rounded-xl object-contain" />
-                <span className="text-xl font-bold text-foreground">PropWealth AI</span>
+        <header className="border-b border-border/50 sticky top-0 z-40 bg-background/95 backdrop-blur-sm">
+          <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+            <div className="flex items-center justify-between gap-2">
+              <Link to="/" className="flex items-center gap-2 sm:gap-3">
+                <img src={LOGO_URL} alt="PropWealth AI" className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl object-contain" />
+                <span className="text-lg sm:text-xl font-bold text-foreground hidden xs:inline">PropWealth AI</span>
               </Link>
-              <Button variant="ghost" asChild>
-                <Link to="/" className="gap-2">
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/" className="gap-1 sm:gap-2">
                   <ArrowLeft className="w-4 h-4" />
-                  {t('common.back')}
+                  <span className="hidden sm:inline">{t('common.back')}</span>
                 </Link>
               </Button>
             </div>
@@ -83,27 +83,27 @@ const Blog: React.FC = () => {
         </header>
 
         {/* Hero */}
-        <section className="py-20 px-6">
+        <section className="py-12 sm:py-16 md:py-20 px-4 sm:px-6">
           <div className="container mx-auto max-w-4xl text-center">
-            <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-foreground mb-4 sm:mb-6">
               PropWealth AI Blog
             </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
               Expert insights on real estate investing, AI technology, and wealth-building strategies.
             </p>
           </div>
         </section>
 
         {/* Categories */}
-        <section className="py-4 px-6 border-b border-border/50">
+        <section className="py-3 sm:py-4 px-4 sm:px-6 border-b border-border/50">
           <div className="container mx-auto max-w-4xl">
-            <div className="flex flex-wrap gap-2 justify-center">
+            <div className="flex flex-wrap gap-1.5 sm:gap-2 justify-center">
               {categories.map((category, index) => (
                 <Button
                   key={index}
                   variant={index === 0 ? 'default' : 'outline'}
                   size="sm"
-                  className="rounded-full"
+                  className="rounded-full text-xs sm:text-sm px-3 sm:px-4"
                 >
                   {category}
                 </Button>

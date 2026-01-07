@@ -58,17 +58,17 @@ const Careers: React.FC = () => {
 
       <div className="min-h-screen bg-background">
         {/* Header */}
-        <header className="border-b border-border/50">
-          <div className="container mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <Link to="/" className="flex items-center gap-3">
-                <img src={LOGO_URL} alt="PropWealth AI" className="w-10 h-10 rounded-xl object-contain" />
-                <span className="text-xl font-bold text-foreground">PropWealth AI</span>
+        <header className="border-b border-border/50 sticky top-0 z-40 bg-background/95 backdrop-blur-sm">
+          <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+            <div className="flex items-center justify-between gap-2">
+              <Link to="/" className="flex items-center gap-2 sm:gap-3">
+                <img src={LOGO_URL} alt="PropWealth AI" className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl object-contain" />
+                <span className="text-lg sm:text-xl font-bold text-foreground hidden xs:inline">PropWealth AI</span>
               </Link>
-              <Button variant="ghost" asChild>
-                <Link to="/" className="gap-2">
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/" className="gap-1 sm:gap-2">
                   <ArrowLeft className="w-4 h-4" />
-                  {t('common.back')}
+                  <span className="hidden sm:inline">{t('common.back')}</span>
                 </Link>
               </Button>
             </div>
@@ -76,29 +76,29 @@ const Careers: React.FC = () => {
         </header>
 
         {/* Hero */}
-        <section className="py-20 px-6">
+        <section className="py-12 sm:py-16 md:py-20 px-4 sm:px-6">
           <div className="container mx-auto max-w-4xl text-center">
-            <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-foreground mb-4 sm:mb-6">
               Join Our Mission
             </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
               Help us democratize real estate investing for millions of people around the world.
             </p>
           </div>
         </section>
 
         {/* Benefits */}
-        <section className="py-16 px-6 bg-muted/30">
+        <section className="py-10 sm:py-12 md:py-16 px-4 sm:px-6 bg-muted/30">
           <div className="container mx-auto max-w-6xl">
-            <h2 className="text-3xl font-bold text-foreground text-center mb-12">Why Work With Us</h2>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <h2 className="text-2xl sm:text-3xl font-bold text-foreground text-center mb-8 sm:mb-12">Why Work With Us</h2>
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 md:gap-6">
               {benefits.map((benefit, index) => (
-                <div key={index} className="glass-card p-6 text-center">
-                  <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center mx-auto mb-4">
-                    <benefit.icon className="w-6 h-6 text-primary" />
+                <div key={index} className="glass-card p-4 sm:p-6 text-center">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-primary/20 flex items-center justify-center mx-auto mb-3 sm:mb-4">
+                    <benefit.icon className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
                   </div>
-                  <h3 className="text-lg font-semibold text-foreground mb-2">{benefit.title}</h3>
-                  <p className="text-sm text-muted-foreground">{benefit.description}</p>
+                  <h3 className="text-sm sm:text-lg font-semibold text-foreground mb-1 sm:mb-2">{benefit.title}</h3>
+                  <p className="text-xs sm:text-sm text-muted-foreground">{benefit.description}</p>
                 </div>
               ))}
             </div>

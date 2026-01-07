@@ -67,17 +67,17 @@ const Contact: React.FC = () => {
 
       <div className="min-h-screen bg-background">
         {/* Header */}
-        <header className="border-b border-border/50">
-          <div className="container mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <Link to="/" className="flex items-center gap-3">
-                <img src={LOGO_URL} alt="PropWealth AI" className="w-10 h-10 rounded-xl object-contain" />
-                <span className="text-xl font-bold text-foreground">PropWealth AI</span>
+        <header className="border-b border-border/50 sticky top-0 z-40 bg-background/95 backdrop-blur-sm">
+          <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+            <div className="flex items-center justify-between gap-2">
+              <Link to="/" className="flex items-center gap-2 sm:gap-3">
+                <img src={LOGO_URL} alt="PropWealth AI" className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl object-contain" />
+                <span className="text-lg sm:text-xl font-bold text-foreground hidden xs:inline">PropWealth AI</span>
               </Link>
-              <Button variant="ghost" asChild>
-                <Link to="/" className="gap-2">
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/" className="gap-1 sm:gap-2">
                   <ArrowLeft className="w-4 h-4" />
-                  {t('common.back')}
+                  <span className="hidden sm:inline">{t('common.back')}</span>
                 </Link>
               </Button>
             </div>
@@ -85,28 +85,28 @@ const Contact: React.FC = () => {
         </header>
 
         {/* Hero */}
-        <section className="py-20 px-6">
+        <section className="py-12 sm:py-16 md:py-20 px-4 sm:px-6">
           <div className="container mx-auto max-w-4xl text-center">
-            <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-foreground mb-4 sm:mb-6">
               Contact Us
             </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
               Have questions? We'd love to hear from you. Send us a message and we'll respond as soon as possible.
             </p>
           </div>
         </section>
 
         {/* Contact Section */}
-        <section className="py-16 px-6">
+        <section className="py-10 sm:py-12 md:py-16 px-4 sm:px-6">
           <div className="container mx-auto max-w-6xl">
-            <div className="grid lg:grid-cols-2 gap-12">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 sm:gap-8 lg:gap-12">
               {/* Contact Form */}
-              <div className="glass-card p-8">
-                <h2 className="text-2xl font-bold text-foreground mb-6">Send a Message</h2>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div className="grid sm:grid-cols-2 gap-4">
+              <div className="glass-card p-4 sm:p-6 md:p-8">
+                <h2 className="text-xl sm:text-2xl font-bold text-foreground mb-4 sm:mb-6">Send a Message</h2>
+                <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-foreground mb-2">Name</label>
+                      <label className="block text-sm font-medium text-foreground mb-1.5 sm:mb-2">Name</label>
                       <Input
                         type="text"
                         value={formData.name}

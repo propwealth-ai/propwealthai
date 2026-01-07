@@ -36,32 +36,32 @@ const Footer: React.FC = () => {
 
   return (
     <footer className="bg-muted/30 border-t border-border/50">
-      <div className="container mx-auto px-6 py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-12">
+      <div className="container mx-auto px-4 sm:px-6 py-10 sm:py-12 md:py-16">
+        <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-5 gap-6 sm:gap-8 md:gap-12">
           {/* Brand Column */}
-          <div className="lg:col-span-2">
-            <div className="flex items-center gap-3 mb-4">
+          <div className="col-span-2 lg:col-span-2">
+            <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
               <img 
                 src={LOGO_URL} 
                 alt="PropWealth AI Logo" 
-                className="w-10 h-10 rounded-xl object-contain"
+                className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl object-contain"
               />
               <div>
-                <h3 className="text-xl font-bold text-foreground">PropWealth AI</h3>
+                <h3 className="text-lg sm:text-xl font-bold text-foreground">PropWealth AI</h3>
                 <p className="text-xs text-muted-foreground">AI Investment OS</p>
               </div>
             </div>
-            <p className="text-muted-foreground mb-6 max-w-sm">
+            <p className="text-sm sm:text-base text-muted-foreground mb-4 sm:mb-6 max-w-sm">
               {t('landing.footerTagline')}
             </p>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
               {socialLinks.map((social, index) => (
                 <a 
                   key={index}
                   href={social.href}
-                  className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center hover:bg-primary/20 hover:text-primary transition-colors"
+                  className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-muted flex items-center justify-center hover:bg-primary/20 hover:text-primary transition-colors"
                 >
-                  <social.icon className="w-5 h-5" />
+                  <social.icon className="w-4 h-4 sm:w-5 sm:h-5" />
                 </a>
               ))}
             </div>
@@ -69,11 +69,11 @@ const Footer: React.FC = () => {
 
           {/* Product Links */}
           <div>
-            <h4 className="font-semibold text-foreground mb-4">{t('landing.footerProduct')}</h4>
-            <ul className="space-y-3">
+            <h4 className="font-semibold text-foreground mb-3 sm:mb-4 text-sm sm:text-base">{t('landing.footerProduct')}</h4>
+            <ul className="space-y-2 sm:space-y-3">
               {footerLinks.product.map((link, index) => (
                 <li key={index}>
-                  <a href={link.href} className="text-muted-foreground hover:text-primary transition-colors">
+                  <a href={link.href} className="text-sm sm:text-base text-muted-foreground hover:text-primary transition-colors">
                     {link.label}
                   </a>
                 </li>
@@ -83,11 +83,11 @@ const Footer: React.FC = () => {
 
           {/* Company Links */}
           <div>
-            <h4 className="font-semibold text-foreground mb-4">{t('landing.footerCompany')}</h4>
-            <ul className="space-y-3">
+            <h4 className="font-semibold text-foreground mb-3 sm:mb-4 text-sm sm:text-base">{t('landing.footerCompany')}</h4>
+            <ul className="space-y-2 sm:space-y-3">
               {footerLinks.company.map((link, index) => (
                 <li key={index}>
-                  <a href={link.href} className="text-muted-foreground hover:text-primary transition-colors">
+                  <a href={link.href} className="text-sm sm:text-base text-muted-foreground hover:text-primary transition-colors">
                     {link.label}
                   </a>
                 </li>
@@ -97,11 +97,11 @@ const Footer: React.FC = () => {
 
           {/* Legal Links */}
           <div>
-            <h4 className="font-semibold text-foreground mb-4">{t('landing.footerLegal')}</h4>
-            <ul className="space-y-3">
+            <h4 className="font-semibold text-foreground mb-3 sm:mb-4 text-sm sm:text-base">{t('landing.footerLegal')}</h4>
+            <ul className="space-y-2 sm:space-y-3">
               {footerLinks.legal.map((link, index) => (
                 <li key={index}>
-                  <a href={link.href} className="text-muted-foreground hover:text-primary transition-colors">
+                  <a href={link.href} className="text-sm sm:text-base text-muted-foreground hover:text-primary transition-colors">
                     {link.label}
                   </a>
                 </li>
@@ -111,11 +111,11 @@ const Footer: React.FC = () => {
         </div>
 
         {/* Bottom Bar */}
-        <div className="mt-12 pt-8 border-t border-border/50 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-muted-foreground">
+        <div className="mt-8 sm:mt-10 md:mt-12 pt-6 sm:pt-8 border-t border-border/50 flex flex-col md:flex-row justify-between items-center gap-3 sm:gap-4 text-center md:text-left">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             © {currentYear} PropWealth AI. {t('landing.footerRights')}
           </p>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             {t('landing.footerPoweredBy')}
           </p>
         </div>

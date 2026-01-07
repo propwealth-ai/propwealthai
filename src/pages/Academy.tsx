@@ -171,9 +171,9 @@ const Academy: React.FC = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Modules List */}
-        <div className="lg:col-span-1 space-y-4">
+        <div className="lg:col-span-1 space-y-3 sm:space-y-4">
           {modules.map((module, index) => {
             const moduleCompletedCount = module.lessons.filter(l => 
               completedLessons.has(l.id)

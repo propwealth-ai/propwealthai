@@ -383,57 +383,57 @@ const Affiliate: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
+    <div className="space-y-4 sm:space-y-6 animate-fade-in px-2 sm:px-0">
       {/* Header */}
-      <div className={cn("flex items-center gap-4", isRTL && "flex-row-reverse")}>
-        <div className="w-12 h-12 rounded-xl bg-gradient-primary flex items-center justify-center">
-          <Award className="w-6 h-6 text-primary-foreground" />
+      <div className={cn("flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4", isRTL && "sm:flex-row-reverse")}>
+        <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-primary flex items-center justify-center flex-shrink-0">
+          <Award className="w-5 h-5 sm:w-6 sm:h-6 text-primary-foreground" />
         </div>
         <div className={isRTL ? "text-right" : ""}>
-          <h1 className="text-3xl font-bold text-foreground">{t('affiliate.title')}</h1>
-          <p className="text-muted-foreground">{t('affiliate.subtitle')}</p>
+          <h1 className="text-2xl sm:text-3xl font-bold text-foreground">{t('affiliate.title')}</h1>
+          <p className="text-sm sm:text-base text-muted-foreground">{t('affiliate.subtitle')}</p>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Users className="w-4 h-4" />
-              {t('affiliate.totalReferrals')}
+          <CardHeader className="pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-1 sm:gap-2">
+              <Users className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="truncate">{t('affiliate.totalReferrals')}</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold text-foreground">
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <p className="text-2xl sm:text-3xl font-bold text-foreground">
               {stats?.total_referrals || 0}
             </p>
           </CardContent>
         </Card>
 
         <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <DollarSign className="w-4 h-4" />
-              {t('affiliate.totalEarned')}
+          <CardHeader className="pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-1 sm:gap-2">
+              <DollarSign className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="truncate">{t('affiliate.totalEarned')}</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold text-primary">
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <p className="text-2xl sm:text-3xl font-bold text-primary">
               ${Number(stats?.total_earned || 0).toFixed(2)}
             </p>
           </CardContent>
         </Card>
 
         <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <TrendingUp className="w-4 h-4" />
-              {t('affiliate.conversionRate')}
+          <CardHeader className="pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-1 sm:gap-2">
+              <TrendingUp className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="truncate">{t('affiliate.conversionRate')}</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold text-foreground">
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <p className="text-2xl sm:text-3xl font-bold text-foreground">
               {referrals && referrals.length > 0 
                 ? `${((referrals.filter(r => r.status === 'paid').length / referrals.length) * 100).toFixed(0)}%`
                 : '0%'
@@ -443,24 +443,25 @@ const Affiliate: React.FC = () => {
         </Card>
 
         <Card className="glass-card border-primary/30">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground flex items-center gap-2">
-              <Wallet className="w-4 h-4" />
-              {t('affiliate.availableBalance')}
+          <CardHeader className="pb-1 sm:pb-2 p-3 sm:p-6">
+            <CardTitle className="text-xs sm:text-sm font-medium text-muted-foreground flex items-center gap-1 sm:gap-2">
+              <Wallet className="w-3 h-3 sm:w-4 sm:h-4" />
+              <span className="truncate">{t('affiliate.availableBalance')}</span>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold text-success">
+          <CardContent className="p-3 sm:p-6 pt-0">
+            <p className="text-2xl sm:text-3xl font-bold text-success">
               ${availableBalance.toFixed(2)}
             </p>
             <Button 
               size="sm" 
-              className="btn-premium mt-2 w-full"
+              className="btn-premium mt-2 w-full text-xs sm:text-sm"
               onClick={() => setShowWithdrawDialog(true)}
               disabled={availableBalance < 50}
             >
-              <ArrowUpRight className="w-4 h-4 mr-1" />
-              {t('affiliate.requestWithdrawal')}
+              <ArrowUpRight className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+              <span className="hidden xs:inline">{t('affiliate.requestWithdrawal')}</span>
+              <span className="xs:hidden">Withdraw</span>
             </Button>
           </CardContent>
         </Card>

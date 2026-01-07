@@ -58,17 +58,17 @@ const About: React.FC = () => {
 
       <div className="min-h-screen bg-background">
         {/* Header */}
-        <header className="border-b border-border/50">
-          <div className="container mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <Link to="/" className="flex items-center gap-3">
-                <img src={LOGO_URL} alt="PropWealth AI" className="w-10 h-10 rounded-xl object-contain" />
-                <span className="text-xl font-bold text-foreground">PropWealth AI</span>
+        <header className="border-b border-border/50 sticky top-0 z-40 bg-background/95 backdrop-blur-sm">
+          <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+            <div className="flex items-center justify-between gap-2">
+              <Link to="/" className="flex items-center gap-2 sm:gap-3">
+                <img src={LOGO_URL} alt="PropWealth AI" className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl object-contain" />
+                <span className="text-lg sm:text-xl font-bold text-foreground hidden xs:inline">PropWealth AI</span>
               </Link>
-              <Button variant="ghost" asChild>
-                <Link to="/" className="gap-2">
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/" className="gap-1 sm:gap-2">
                   <ArrowLeft className="w-4 h-4" />
-                  {t('common.back')}
+                  <span className="hidden sm:inline">{t('common.back')}</span>
                 </Link>
               </Button>
             </div>
@@ -76,12 +76,12 @@ const About: React.FC = () => {
         </header>
 
         {/* Hero */}
-        <section className="py-20 px-6">
+        <section className="py-12 sm:py-16 md:py-20 px-4 sm:px-6">
           <div className="container mx-auto max-w-4xl text-center">
-            <h1 className="text-4xl md:text-5xl font-bold text-foreground mb-6">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-foreground mb-4 sm:mb-6">
               About PropWealth AI
             </h1>
-            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto">
               We're on a mission to democratize real estate investing by making institutional-grade 
               AI analysis accessible to everyone.
             </p>
@@ -89,22 +89,22 @@ const About: React.FC = () => {
         </section>
 
         {/* Mission Section */}
-        <section className="py-16 px-6 bg-muted/30">
+        <section className="py-10 sm:py-12 md:py-16 px-4 sm:px-6 bg-muted/30">
           <div className="container mx-auto max-w-4xl">
-            <div className="glass-card p-8 md:p-12">
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-16 h-16 rounded-2xl bg-primary/20 flex items-center justify-center">
-                  <Target className="w-8 h-8 text-primary" />
+            <div className="glass-card p-4 sm:p-6 md:p-8 lg:p-12">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4 mb-4 sm:mb-6">
+                <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-primary/20 flex items-center justify-center flex-shrink-0">
+                  <Target className="w-6 h-6 sm:w-8 sm:h-8 text-primary" />
                 </div>
-                <h2 className="text-3xl font-bold text-foreground">Our Mission</h2>
+                <h2 className="text-2xl sm:text-3xl font-bold text-foreground">Our Mission</h2>
               </div>
-              <p className="text-lg text-muted-foreground leading-relaxed">
+              <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
                 At PropWealth AI, we believe that building wealth through real estate shouldn't be 
                 reserved for those with insider connections or massive capital. Our AI-powered platform 
                 analyzes properties in seconds, providing the same caliber of insights that hedge funds 
                 and institutional investors use to make billion-dollar decisions.
               </p>
-              <p className="text-lg text-muted-foreground leading-relaxed mt-4">
+              <p className="text-base sm:text-lg text-muted-foreground leading-relaxed mt-4">
                 Our goal is simple: help you turn $30,000 into $1,000,000 in net worth through 
                 strategic real estate investments, powered by artificial intelligence.
               </p>
@@ -113,17 +113,17 @@ const About: React.FC = () => {
         </section>
 
         {/* Values */}
-        <section className="py-16 px-6">
+        <section className="py-10 sm:py-12 md:py-16 px-4 sm:px-6">
           <div className="container mx-auto max-w-6xl">
-            <h2 className="text-3xl font-bold text-foreground text-center mb-12">Our Values</h2>
-            <div className="grid md:grid-cols-2 gap-6">
+            <h2 className="text-2xl sm:text-3xl font-bold text-foreground text-center mb-8 sm:mb-12">Our Values</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               {values.map((value, index) => (
-                <div key={index} className="glass-card p-6 hover:border-primary/30 transition-colors">
-                  <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center mb-4">
-                    <value.icon className="w-6 h-6 text-primary" />
+                <div key={index} className="glass-card p-4 sm:p-6 hover:border-primary/30 transition-colors">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-primary/20 flex items-center justify-center mb-3 sm:mb-4">
+                    <value.icon className="w-5 h-5 sm:w-6 sm:h-6 text-primary" />
                   </div>
-                  <h3 className="text-xl font-semibold text-foreground mb-2">{value.title}</h3>
-                  <p className="text-muted-foreground">{value.description}</p>
+                  <h3 className="text-lg sm:text-xl font-semibold text-foreground mb-2">{value.title}</h3>
+                  <p className="text-sm sm:text-base text-muted-foreground">{value.description}</p>
                 </div>
               ))}
             </div>

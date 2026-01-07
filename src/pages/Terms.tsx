@@ -21,17 +21,17 @@ const Terms: React.FC = () => {
 
       <div className="min-h-screen bg-background">
         {/* Header */}
-        <header className="border-b border-border/50">
-          <div className="container mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <Link to="/" className="flex items-center gap-3">
-                <img src={LOGO_URL} alt="PropWealth AI" className="w-10 h-10 rounded-xl object-contain" />
-                <span className="text-xl font-bold text-foreground">PropWealth AI</span>
+        <header className="border-b border-border/50 sticky top-0 z-40 bg-background/95 backdrop-blur-sm">
+          <div className="container mx-auto px-4 sm:px-6 py-3 sm:py-4">
+            <div className="flex items-center justify-between gap-2">
+              <Link to="/" className="flex items-center gap-2 sm:gap-3">
+                <img src={LOGO_URL} alt="PropWealth AI" className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl object-contain" />
+                <span className="text-lg sm:text-xl font-bold text-foreground hidden xs:inline">PropWealth AI</span>
               </Link>
-              <Button variant="ghost" asChild>
-                <Link to="/" className="gap-2">
+              <Button variant="ghost" size="sm" asChild>
+                <Link to="/" className="gap-1 sm:gap-2">
                   <ArrowLeft className="w-4 h-4" />
-                  {t('common.back')}
+                  <span className="hidden sm:inline">{t('common.back')}</span>
                 </Link>
               </Button>
             </div>
@@ -39,11 +39,11 @@ const Terms: React.FC = () => {
         </header>
 
         {/* Content */}
-        <main className="py-16 px-6">
+        <main className="py-8 sm:py-12 md:py-16 px-4 sm:px-6">
           <div className="container mx-auto max-w-4xl">
-            <div className="glass-card p-8 md:p-12">
-              <h1 className="text-3xl md:text-4xl font-bold text-foreground mb-4">Terms of Service</h1>
-              <p className="text-muted-foreground mb-8">Last updated: {lastUpdated}</p>
+            <div className="glass-card p-4 sm:p-6 md:p-8 lg:p-12">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-foreground mb-3 sm:mb-4">Terms of Service</h1>
+              <p className="text-sm sm:text-base text-muted-foreground mb-6 sm:mb-8">Last updated: {lastUpdated}</p>
 
               <div className="prose prose-invert max-w-none space-y-8">
                 <section>
