@@ -438,55 +438,79 @@ serve(async (req) => {
 
 // ============= STEP 2: AI EXTRACTS RAW DATA ONLY =============
     // CRITICAL: Extract unit identifier from URL for precision matching
-    // FIXED: Look specifically for APT, UNIT, or # followed by the unit number
-    // This regex now correctly matches "APT-7I" instead of "100" from the street address
     const urlUnitMatch = url?.match(/(?:apt|unit|#)[-\s]*([a-zA-Z0-9]+)/i);
     const targetUnit = urlUnitMatch ? urlUnitMatch[1].toUpperCase() : null;
     console.log('Target unit from URL:', targetUnit, '| Full URL:', url);
 
     const systemPrompt = `You are PropWealth AI Data Extractor. Your ONLY job is to extract raw property data from listings.
 
-=== UNIT SPECIFICITY FILTER (CRITICAL) ===
-${targetUnit ? `TARGET UNIT: ${targetUnit}
+=== UNIVERSAL DATA EXTRACTION STRATEGY (PRIORITY ORDER) ===
+
+PRIORITY A - HIDDEN METADATA (CHECK FIRST):
+Before reading visible text, search the HTML source for structured data:
+1. Look for <script type="application/ld+json"> tags
+2. Extract from these JSON-LD fields (in order of preference):
+   - offers.price or price → This is the LISTING PRICE
+   - address.streetAddress → Property address
+   - numberOfRooms, numberOfBedrooms, numberOfBathrooms
+   - floorSize → Square footage
+3. Most sites (Zillow, Realtor, Redfin) embed accurate data in JSON-LD
+4. JSON-LD data is MORE RELIABLE than visible text - use it when available
+
+PRIORITY B - SEMANTIC SELECTORS (if no JSON-LD):
+1. Find the <h1> element → Usually contains the address
+2. Look for price in the "Hero Section" (top of page, visually prominent)
+3. Use data-testid="price" attribute if present
+4. Price adjacent to H1 is usually correct
+
+=== CONTENT ISOLATION (ANTI-HALLUCINATION) ===
+STRICTLY IGNORE these sections - they contain data from OTHER properties:
+- "Nearby Homes"
+- "Similar Homes" / "Similar Listings"
+- "Other Units For Sale"
+- "Building Units"
+- "Recently Sold"
+- "Price History of Neighbors"
+- "Sponsored" listings
+- "Recommended For You"
+- Footer sections with multiple properties
+
+FOCUS ONLY ON: The main "Listing Detail Container" - the primary property card/section.
+
+${targetUnit ? `=== UNIT SPECIFICITY FILTER ===
+TARGET UNIT: ${targetUnit}
 YOU MUST ONLY EXTRACT DATA FOR THIS SPECIFIC UNIT.
-- IGNORE all data from "Similar Homes", "Building Units", "Other Units For Sale" sections
-- IGNORE neighbor listings that appear on the same page
 - The List Price MUST be for unit ${targetUnit} ONLY
 - If you see multiple prices, use ONLY the one in the main listing header for ${targetUnit}` : 'Extract data for the primary listing only.'}
 
-=== PRICE EXTRACTION - ABSOLUTE PRIORITY ORDER (MANDATORY) ===
-YOU MUST FOLLOW THIS EXACT ORDER. NO EXCEPTIONS.
+=== TERMINOLOGY NORMALIZATION (CROSS-PLATFORM) ===
+Recognize synonyms for the same field regardless of source:
+- PRICE: "List Price", "Asking Price", "Sale Price", "Price" → listing_price
+- TAXES: "Property Taxes", "Annual Tax", "Tax Assessment", "Real Estate Taxes" → property_taxes_annual  
+- HOA: "HOA Fee", "Association Fee", "Condo Fee", "Maintenance Fee", "Common Charges" → hoa_fees
+- RENT: "Rent Zestimate", "Estimated Rent", "Rental Estimate" → estimated_monthly_rent
 
-1. FIRST (MANDATORY): Find the element with attribute data-testid="price"
-   - This is THE ONLY valid source for the listing price
-   - Extract the dollar amount from this element EXACTLY as shown
-   - Example: <span data-testid="price">$139,000</span> → listing_price = 139000
+=== EXPENSE EXTRACTION LOGIC (FACTS vs ESTIMATES) ===
+1. NEVER assume a fixed tax rate (e.g., 1.2%) if the real value is on the page
+2. Search specifically for "Monthly Payment Calculator" or "Cost Calculator" sections
+3. Extract the value labeled as "Property Tax" or "Taxes"
+4. If value is ANNUAL, divide by 12 for monthly
+5. If value is MONTHLY, multiply by 12 for annual
+6. ONLY if no value exists → mark as "Estimated" and use 1.5% of purchase price
+7. Include source: "extracted" or "estimated" for each expense field
 
-2. SECOND (if data-testid="price" missing): Find the FIRST large dollar amount in the main listing header
-   - This is typically in a <h1>, <h2>, or prominent <span> near the property title
-   - It is almost always the SMALLER of multiple prices shown
-
-3. ABSOLUTE REJECTION LIST - NEVER use these as listing_price:
-   - "Zestimate" or "Zestimate®" → This is an ESTIMATE, not the listing price
-   - "Home Value" or "Estimated Value" → This is an ESTIMATE
-   - "Price History" values → These are old prices
-   - Prices in "Similar Homes" or "Other Units" sections → Wrong unit
-   - ANY price labeled as "estimate", "predicted", or "market value"
+=== PRICE VALIDATION ===
+- If extracted price is $0 or null → DO NOT GUESS
+- Return error: "price_extraction_failed": true
+- Include: "manual_review_required": true
+- Provide: "visible_prices_found": [array of all dollar amounts seen]
 
 === CO-OP PRICE SANITY CHECK ===
-Co-ops (Cooperative apartments) in Manhattan often sell for $100k-$200k despite high Zestimates.
-- If ownership_type = "coop" AND you found a price > $350,000
-- STOP and RE-SCAN for a lower price in the main header
-- Co-ops have LOW purchase prices but HIGH monthly fees (HOA $1500-$3000)
+Co-ops often sell for $100k-$200k despite high Zestimates.
+- If ownership_type = "coop" AND price > $350,000
+- RE-SCAN for a lower price in the main header
+- Co-ops have LOW purchase prices but HIGH monthly fees
 - The lower price is ALWAYS correct for co-ops
-
-=== CRITICAL RULES ===
-1. Extract RAW VALUES ONLY. Do NOT calculate any financial metrics.
-2. NEVER generate or estimate a "market value" - use the ACTUAL LISTING PRICE ONLY.
-3. The "listing_price" field is SACRED - it must be the EXACT price shown for THIS unit in the main header.
-4. Detect ownership type (Fee Simple, Leasehold, Land Lease, Co-op).
-5. ANTI-HALLUCINATION: If a section shows "Other Units" or "Similar Listings", SKIP IT ENTIRELY.
-6. When in doubt, use the LOWER price visible on the page.
 
 JURISDICTION: ${jurisdiction.code}
 CURRENCY: ${jurisdiction.currency}
@@ -495,6 +519,13 @@ Return a JSON object with this EXACT structure:
 {
   "property_id": "string (UUID)",
   "extracted_unit": "string (the unit number you found - e.g. '7I')",
+  "extraction_metadata": {
+    "json_ld_found": boolean,
+    "price_source": "json_ld" | "data_testid" | "hero_section" | "manual_search",
+    "taxes_source": "extracted" | "estimated",
+    "rent_source": "rent_zestimate" | "page_text" | "estimated",
+    "confidence_score": number (0-100)
+  },
   "raw_data": {
     "purchase_price": number (MUST be EXACTLY the listing price for THIS unit - NOT an estimate),
     "listing_price": number (THE EXACT LIST PRICE shown on the page for THIS unit - REQUIRED),
@@ -502,8 +533,11 @@ Return a JSON object with this EXACT structure:
     "rent_zestimate": number or null (look for "Rent Zestimate" specifically),
     "is_rent_estimated": boolean (true if you had to estimate, false if found on page),
     "hoa_fees": number or null (MONTHLY amount only),
+    "hoa_source": "extracted" | "estimated",
     "property_taxes_annual": number or null (ANNUAL amount only),
+    "taxes_source": "extracted" | "estimated",
     "insurance_annual": number or null (ANNUAL amount only),
+    "insurance_source": "extracted" | "estimated",
     "ownership_type": "fee_simple" | "leasehold" | "land_lease" | "coop",
     "property_type": "apartment" | "house" | "commercial" | "land",
     "location_quality": "prime" | "good" | "average" | "developing",
@@ -511,7 +545,10 @@ Return a JSON object with this EXACT structure:
     "baths": number or null,
     "sqft": number or null,
     "year_built": number or null,
-    "description_hints": ["array of keywords"]
+    "description_hints": ["array of keywords"],
+    "price_extraction_failed": boolean (true if price could not be extracted),
+    "manual_review_required": boolean (true if data is unreliable),
+    "visible_prices_found": [array of all dollar amounts found on page]
   },
   "ai_analysis": {
     "verdict": "BUY" | "NEGOTIATE" | "AVOID",
@@ -588,22 +625,44 @@ TAX FRAMEWORK: ${jurisdiction.taxInfo}`;
 URL: ${url}
 ${targetUnit ? `\n=== CRITICAL: UNIT FILTER ===\nTARGET UNIT: ${targetUnit}\nONLY extract data for unit ${targetUnit}. IGNORE all other units on the page.\n` : ''}
 ${purchasePrice ? `User Override Price: ${purchasePrice} (USE THIS EXACT VALUE for purchase_price)` : 'EXTRACT the actual listing price shown on the page - do NOT estimate market value'}
-${monthlyRent ? `User Override Rent: ${monthlyRent}` : 'If rent is missing, estimate using 1.2% of list price. NEVER return $0.'}
+${monthlyRent ? `User Override Rent: ${monthlyRent}` : 'If rent is missing, estimate using the rules provided. NEVER return $0.'}
 
-=== EXTRACTION CHECKLIST ===
-1. Find the LIST PRICE for ${targetUnit || 'this property'} - put in "listing_price" and "purchase_price"
-2. ${purchasePrice ? `Override with user price: ${purchasePrice}` : 'Use listing price - NEVER use AI estimates or market values'}
-3. Find rent OR estimate it (min 1.2% of list price) - NEVER $0
-4. Detect ownership type (Fee Simple vs Leasehold vs Co-op)
-5. Extract expenses WITHOUT double-counting
-6. Verify "extracted_unit" matches "${targetUnit || 'main listing'}"
+=== MANDATORY EXTRACTION WORKFLOW ===
+STEP 1 - CHECK JSON-LD FIRST:
+- Search for <script type="application/ld+json"> in page source
+- Extract: offers.price, address.streetAddress, numberOfBedrooms, floorSize
+- If found, these values take PRIORITY over visible text
+
+STEP 2 - PRICE EXTRACTION:
+- ${purchasePrice ? `USE USER OVERRIDE: ${purchasePrice}` : 'Find listing price in JSON-LD OR main header'}
+- REJECT: Zestimate, estimates, "similar homes" prices, price history
+- If price = $0 or null, set "price_extraction_failed": true
+
+STEP 3 - EXPENSE EXTRACTION:
+- Search for "Monthly Payment Calculator" or "Costs" section
+- Extract ACTUAL values for taxes, HOA, insurance
+- Mark each as "extracted" or "estimated" in the source fields
+- NEVER use generic rates if real values are visible
+
+STEP 4 - CONTENT ISOLATION:
+- IGNORE: "Nearby Homes", "Similar Listings", "Other Units", "Sponsored"
+- FOCUS ONLY on the main listing container
+
+STEP 5 - VALIDATION:
+- Verify extracted_unit matches "${targetUnit || 'main listing'}"
+- If price seems wrong (e.g., too high for co-op), re-scan
 
 Return valid JSON only.` :
       `EXTRACT DATA for this property:
 
 Property: ${address}
 Purchase Price: ${purchasePrice}
-Monthly Rent: ${monthlyRent || 'Estimate at 1.2% of purchase price if unknown'}
+Monthly Rent: ${monthlyRent || 'Estimate at 1% of purchase price if unknown - NEVER return $0'}
+
+=== EXTRACTION WORKFLOW ===
+1. Use provided purchase price directly
+2. Extract or estimate rent (minimum 1% of price)
+3. Mark all estimated values with appropriate source fields
 
 Return valid JSON only.`;
 
@@ -675,6 +734,37 @@ Return valid JSON only.`;
       console.warn(`UNIT MISMATCH! Requested: ${targetUnit}, Extracted: ${extractedUnit}`);
     }
 
+    // ============= EXTRACTION METADATA LOGGING =============
+    const extractionMetadata = extractedData.extraction_metadata || {};
+    console.log('Extraction metadata:', {
+      json_ld_found: extractionMetadata.json_ld_found || false,
+      price_source: extractionMetadata.price_source || 'unknown',
+      taxes_source: extractionMetadata.taxes_source || 'unknown',
+      rent_source: extractionMetadata.rent_source || 'unknown',
+      confidence_score: extractionMetadata.confidence_score || 0,
+    });
+
+    // ============= PRICE EXTRACTION VALIDATION =============
+    const priceExtractionFailed = extractedData.raw_data?.price_extraction_failed || false;
+    const manualReviewRequired = extractedData.raw_data?.manual_review_required || false;
+    const visiblePricesFound = extractedData.raw_data?.visible_prices_found || [];
+
+    if (priceExtractionFailed && !purchasePrice) {
+      console.error('PRICE EXTRACTION FAILED - Manual review required');
+      console.log('Visible prices found on page:', visiblePricesFound);
+      
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'price_extraction_failed',
+        message: 'Could not reliably extract the listing price. Please enter the price manually.',
+        visible_prices: visiblePricesFound,
+        manual_review_required: true,
+      }), {
+        status: 422,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     // PRIORITY: 1) User input, 2) AI listing_price (NEVER estimated market value)
     const aiListingPrice = extractedData.raw_data?.listing_price || 0;
     const aiFallbackPrice = extractedData.raw_data?.purchase_price || 0;
@@ -682,20 +772,37 @@ Return valid JSON only.`;
     // CRITICAL: Use listing price, never AI estimates
     let finalPrice = purchasePrice || aiListingPrice || aiFallbackPrice;
     const priceSource = purchasePrice ? 'user_input' : (aiListingPrice ? 'listing_price' : 'ai_estimated');
+
+    // Additional validation: if price is 0 after all attempts, fail
+    if (!finalPrice || finalPrice <= 0) {
+      console.error('FINAL PRICE IS ZERO OR INVALID');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'invalid_price',
+        message: 'Extracted price is $0 or invalid. Please enter the purchase price manually.',
+        visible_prices: visiblePricesFound,
+        manual_review_required: true,
+      }), {
+        status: 422,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
     
     console.log('Price determination:', { 
       userPrice: purchasePrice, 
       aiListingPrice, 
       aiFallbackPrice, 
       finalPrice,
-      priceSource 
+      priceSource,
+      extractionMethod: extractionMetadata.price_source || 'unknown',
     });
 
     // ============= RENT FALLBACK LOGIC (NEVER $0) =============
-    // NEW: Use 1% of price OR $2.50/sqft, whichever is LOWER
+    // Use 1% of price OR $2.50/sqft, whichever is LOWER
     let estimatedRent = monthlyRent || extractedData.raw_data?.estimated_monthly_rent || 0;
     let isRentEstimated = extractedData.raw_data?.is_rent_estimated || false;
     const sqft = extractedData.raw_data?.sqft || 0;
+    const rentSource = extractedData.raw_data?.rent_source || (monthlyRent ? 'user_input' : 'unknown');
     
     // Try rent zestimate first
     const rentZestimate = extractedData.raw_data?.rent_zestimate;
@@ -705,7 +812,7 @@ Return valid JSON only.`;
         isRentEstimated = true;
         console.log('Using Rent Zestimate:', rentZestimate);
       } else {
-        // NEW FORMULA: Use the LOWER of 1% of price or $2.50/sqft
+        // FORMULA: Use the LOWER of 1% of price or $2.50/sqft
         const onePercentRent = Math.round(finalPrice * 0.01);
         const sqftRent = sqft > 0 ? Math.round(sqft * 2.50) : Infinity;
         
@@ -727,6 +834,13 @@ Return valid JSON only.`;
       isRentEstimated = true;
       console.log('Emergency rent fallback:', estimatedRent);
     }
+
+    // ============= EXPENSE SOURCE TRACKING =============
+    const hoaSource = extractedData.raw_data?.hoa_source || 'estimated';
+    const taxesSource = extractedData.raw_data?.taxes_source || 'estimated';
+    const insuranceSource = extractedData.raw_data?.insurance_source || 'estimated';
+
+    console.log('Expense sources:', { hoaSource, taxesSource, insuranceSource });
 
     const rawData: RawExtractedData = {
       purchase_price: finalPrice,
@@ -752,7 +866,9 @@ Return valid JSON only.`;
       listingPrice: rawData.listing_price,
       rent: rawData.estimated_monthly_rent,
       isRentEstimated,
+      rentSource,
       ownershipType: rawData.ownership_type,
+      manualReviewRequired,
     });
     
     const calculatedMetrics = calculateDeterministicMetrics(
