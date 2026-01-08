@@ -381,6 +381,11 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'admin.actions': 'Actions',
     'admin.noUsersFound': 'No users found matching your filters',
     'admin.upgradeToPro': 'Upgrade to Pro',
+    'admin.upgradePlan': 'Upgrade Plan',
+    'admin.changePlan': 'Change Plan',
+    'admin.selectPlan': 'Select Plan',
+    'admin.selectPlanDesc': 'Choose a plan for',
+    'admin.confirmUpgrade': 'Confirm Upgrade',
     'admin.downgradeToFree': 'Downgrade to Free',
     'admin.activateUser': 'Activate User',
     'admin.banUser': 'Ban User',
@@ -973,6 +978,11 @@ const translations: Record<LanguageCode, Record<string, string>> = {
     'affiliate.withdrawalError': 'Falha ao enviar solicitação de saque',
     'common.copy': 'Copiar',
     'common.unknown': 'Desconhecido',
+    'admin.upgradePlan': 'Atualizar Plano',
+    'admin.changePlan': 'Alterar Plano',
+    'admin.selectPlan': 'Selecionar Plano',
+    'admin.selectPlanDesc': 'Escolha um plano para',
+    'admin.confirmUpgrade': 'Confirmar Atualização',
     
     // Admin Withdrawals PT
     'admin.withdrawals': 'Saques',

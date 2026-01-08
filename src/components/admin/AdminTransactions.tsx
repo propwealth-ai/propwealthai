@@ -73,7 +73,7 @@ const AdminTransactions: React.FC = () => {
     },
   });
 
-  // Fetch affiliate referrals
+  // Fetch affiliate referrals with referred user plan info
   const { data: affiliateReferrals, isLoading: affLoading, refetch: refetchAff } = useQuery({
     queryKey: ['admin-affiliate-referrals'],
     queryFn: async () => {
@@ -85,12 +85,12 @@ const AdminTransactions: React.FC = () => {
       
       if (error) throw error;
 
-      // Fetch referrer and referred user details
+      // Fetch referrer, referred user details and referred user's plan
       const referralsWithUsers = await Promise.all(
         (data || []).map(async (ref) => {
           const [referrerRes, referredRes] = await Promise.all([
             supabase.from('profiles').select('email, full_name').eq('id', ref.referrer_id).maybeSingle(),
-            supabase.from('profiles').select('email, full_name').eq('id', ref.referred_id).maybeSingle()
+            supabase.from('profiles').select('email, full_name, plan_type, payment_status').eq('id', ref.referred_id).maybeSingle()
           ]);
           
           return { 
@@ -101,7 +101,7 @@ const AdminTransactions: React.FC = () => {
         })
       );
 
-      return referralsWithUsers as AffiliateReferral[];
+      return referralsWithUsers as (AffiliateReferral & { referred?: { plan_type?: string; payment_status?: string } })[];
     },
   });
 
@@ -213,7 +213,15 @@ const AdminTransactions: React.FC = () => {
     .filter(tx => tx.status === 'refunded')
     .reduce((sum, tx) => sum + tx.amount, 0);
 
-  const totalCommissions = affiliateReferrals?.reduce((sum, r) => sum + Number(r.commission_amount || 0), 0) || 0;
+  // Only count commissions from referrals where:
+  // 1. The referral status is 'paid'
+  // 2. The referred user has an active paid plan (pro, business, enterprise)
+  const paidPlans = ['pro', 'business', 'enterprise'];
+  const totalCommissions = affiliateReferrals?.filter(r => {
+    const hasPaidPlan = r.referred?.plan_type && paidPlans.includes(r.referred.plan_type);
+    const isPaidStatus = r.status === 'paid';
+    return isPaidStatus && hasPaidPlan;
+  }).reduce((sum, r) => sum + Number(r.commission_amount || 0), 0) || 0;
 
   const getAffiliateStatusColor = (status: string) => {
     switch (status) {

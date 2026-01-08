@@ -24,11 +24,15 @@ interface ReferralData {
   commission_amount: number;
   status: string;
   created_at: string;
+  referred_plan?: string;
 }
 
 interface AffiliateMetricsDashboardProps {
   allReferrals: ReferralData[];
 }
+
+// Only count commissions from paid status with paid plans
+const paidPlans = ['pro', 'business', 'enterprise'];
 
 const AffiliateMetricsDashboard: React.FC<AffiliateMetricsDashboardProps> = ({ allReferrals }) => {
   const { t, isRTL } = useLanguage();
@@ -46,19 +50,24 @@ const AffiliateMetricsDashboard: React.FC<AffiliateMetricsDashboardProps> = ({ a
       monthMap.set(key, { month: monthName, referrals: 0, paid: 0, pending: 0, total: 0 });
     }
 
-    // Populate with actual data
+    // Populate with actual data - only count paid referrals with paid plans
     allReferrals.forEach(referral => {
       const date = new Date(referral.created_at);
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const hasPaidPlan = referral.referred_plan && paidPlans.includes(referral.referred_plan);
       
       if (monthMap.has(key)) {
         const entry = monthMap.get(key)!;
         entry.referrals += 1;
-        entry.total += referral.commission_amount;
-        if (referral.status === 'paid') {
-          entry.paid += referral.commission_amount;
-        } else if (referral.status === 'pending') {
-          entry.pending += referral.commission_amount;
+        
+        // Only count commissions if paid status AND has paid plan
+        if (hasPaidPlan) {
+          entry.total += referral.commission_amount;
+          if (referral.status === 'paid') {
+            entry.paid += referral.commission_amount;
+          } else if (referral.status === 'pending') {
+            entry.pending += referral.commission_amount;
+          }
         }
       }
     });
@@ -66,7 +75,7 @@ const AffiliateMetricsDashboard: React.FC<AffiliateMetricsDashboardProps> = ({ a
     return Array.from(monthMap.values());
   }, [allReferrals]);
 
-  // Calculate summary stats
+  // Calculate summary stats - only count referrals with paid plans
   const stats = useMemo(() => {
     const now = new Date();
     const thisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -79,8 +88,13 @@ const AffiliateMetricsDashboard: React.FC<AffiliateMetricsDashboardProps> = ({ a
       return date >= lastMonth && date <= lastMonthEnd;
     });
 
-    const thisMonthCommissions = thisMonthReferrals.reduce((sum, r) => sum + r.commission_amount, 0);
-    const lastMonthCommissions = lastMonthReferrals.reduce((sum, r) => sum + r.commission_amount, 0);
+    // Only count commissions from paid referrals with paid plans
+    const thisMonthCommissions = thisMonthReferrals
+      .filter(r => r.status === 'paid' && r.referred_plan && paidPlans.includes(r.referred_plan))
+      .reduce((sum, r) => sum + r.commission_amount, 0);
+    const lastMonthCommissions = lastMonthReferrals
+      .filter(r => r.status === 'paid' && r.referred_plan && paidPlans.includes(r.referred_plan))
+      .reduce((sum, r) => sum + r.commission_amount, 0);
 
     const referralGrowth = lastMonthReferrals.length > 0
       ? ((thisMonthReferrals.length - lastMonthReferrals.length) / lastMonthReferrals.length) * 100

@@ -29,6 +29,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
 
 interface Profile {
   id: string;
@@ -48,6 +57,9 @@ const AdminUsers: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterPlan, setFilterPlan] = useState('all');
+  const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<Profile | null>(null);
+  const [selectedPlan, setSelectedPlan] = useState<string>('pro');
 
   const { data: profiles, isLoading, refetch } = useQuery({
     queryKey: ['admin-users'],
@@ -86,8 +98,20 @@ const AdminUsers: React.FC = () => {
     },
   });
 
-  const handleUpgrade = (userId: string) => {
-    updateUserMutation.mutate({ userId, updates: { plan_type: 'pro', payment_status: 'active' } });
+  const handleOpenUpgradeDialog = (user: Profile) => {
+    setSelectedUser(user);
+    setSelectedPlan('pro');
+    setUpgradeDialogOpen(true);
+  };
+
+  const handleUpgrade = () => {
+    if (!selectedUser) return;
+    updateUserMutation.mutate({ 
+      userId: selectedUser.id, 
+      updates: { plan_type: selectedPlan, payment_status: 'active' } 
+    });
+    setUpgradeDialogOpen(false);
+    setSelectedUser(null);
   };
 
   const handleDowngrade = (userId: string) => {
@@ -125,7 +149,23 @@ const AdminUsers: React.FC = () => {
   };
 
   const getPlanBadge = (plan: string) => {
-    return plan === 'pro' ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground';
+    const styles: Record<string, string> = {
+      pro: 'bg-primary/20 text-primary',
+      business: 'bg-info/20 text-info',
+      enterprise: 'bg-warning/20 text-warning',
+      free: 'bg-muted text-muted-foreground',
+    };
+    return styles[plan] || 'bg-muted text-muted-foreground';
+  };
+
+  const getPlanLabel = (plan: string) => {
+    const labels: Record<string, string> = {
+      pro: 'Pro',
+      business: 'Business',
+      enterprise: 'Enterprise',
+      free: 'Free',
+    };
+    return labels[plan] || plan;
   };
 
   return (
@@ -227,7 +267,7 @@ const AdminUsers: React.FC = () => {
                   </TableCell>
                   <TableCell className={isRTL ? "text-right" : ""}>
                     <span className={cn("px-2 py-1 text-xs rounded-full font-medium", getPlanBadge(profile.plan_type))}>
-                      {profile.plan_type === 'pro' ? 'Pro' : 'Free'}
+                      {getPlanLabel(profile.plan_type)}
                     </span>
                   </TableCell>
                   <TableCell className={isRTL ? "text-right" : ""}>
@@ -247,15 +287,21 @@ const AdminUsers: React.FC = () => {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align={isRTL ? "start" : "end"}>
                         {profile.plan_type === 'free' ? (
-                          <DropdownMenuItem onClick={() => handleUpgrade(profile.id)}>
+                          <DropdownMenuItem onClick={() => handleOpenUpgradeDialog(profile)}>
                             <CreditCard className="w-4 h-4 mr-2" />
-                            {t('admin.upgradeToPro')}
+                            {t('admin.upgradePlan')}
                           </DropdownMenuItem>
                         ) : (
-                          <DropdownMenuItem onClick={() => handleDowngrade(profile.id)}>
-                            <CreditCard className="w-4 h-4 mr-2" />
-                            {t('admin.downgradeToFree')}
-                          </DropdownMenuItem>
+                          <>
+                            <DropdownMenuItem onClick={() => handleOpenUpgradeDialog(profile)}>
+                              <CreditCard className="w-4 h-4 mr-2" />
+                              {t('admin.changePlan')}
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDowngrade(profile.id)}>
+                              <CreditCard className="w-4 h-4 mr-2" />
+                              {t('admin.downgradeToFree')}
+                            </DropdownMenuItem>
+                          </>
                         )}
                         <DropdownMenuItem onClick={() => handleUnban(profile.id)}>
                           <UserCheck className="w-4 h-4 mr-2" />
@@ -283,6 +329,56 @@ const AdminUsers: React.FC = () => {
           {profiles?.filter(p => p.payment_status === 'past_due').length || 0} {t('admin.pastDue')}
         </span>
       </div>
+
+      {/* Upgrade Plan Dialog */}
+      <Dialog open={upgradeDialogOpen} onOpenChange={setUpgradeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t('admin.selectPlan')}</DialogTitle>
+            <DialogDescription>
+              {t('admin.selectPlanDesc')} {selectedUser?.full_name || selectedUser?.email}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>{t('admin.plan')}</Label>
+              <Select value={selectedPlan} onValueChange={setSelectedPlan}>
+                <SelectTrigger className="input-executive">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pro">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-primary"></span>
+                      Pro - $29.99/mo
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="business">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-info"></span>
+                      Business - $99.99/mo
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="enterprise">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-warning"></span>
+                      Enterprise - $299.99/mo
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setUpgradeDialogOpen(false)}>
+              {t('common.cancel')}
+            </Button>
+            <Button className="btn-premium" onClick={handleUpgrade}>
+              {t('admin.confirmUpgrade')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
