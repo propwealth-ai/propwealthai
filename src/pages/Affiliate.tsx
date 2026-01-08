@@ -221,6 +221,9 @@ const Affiliate: React.FC = () => {
   });
 
   // Generate monthly earnings data from referrals
+  // Only count earnings from referrals with paid status AND paid plan (pro, business, enterprise)
+  const paidPlans = ['pro', 'business', 'enterprise'];
+
   const monthlyEarningsData = React.useMemo(() => {
     if (!referrals) return [];
     
@@ -234,9 +237,10 @@ const Affiliate: React.FC = () => {
       monthlyData[key] = 0;
     }
     
-    // Aggregate earnings by month
+    // Aggregate earnings by month - only count if status is 'paid' AND referred has paid plan
     referrals.forEach((ref) => {
-      if (ref.status === 'paid') {
+      const hasPaidPlan = ref.referred?.plan_type && paidPlans.includes(ref.referred.plan_type);
+      if (ref.status === 'paid' && hasPaidPlan) {
         const date = new Date(ref.created_at);
         const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         if (key in monthlyData) {
@@ -249,6 +253,14 @@ const Affiliate: React.FC = () => {
       month: new Date(month + '-01').toLocaleDateString(undefined, { month: 'short' }),
       earnings,
     }));
+  }, [referrals]);
+
+  // Calculate actual earned - only from paid referrals with paid plans
+  const actualEarned = React.useMemo(() => {
+    if (!referrals) return 0;
+    return referrals
+      .filter(r => r.status === 'paid' && r.referred?.plan_type && paidPlans.includes(r.referred.plan_type))
+      .reduce((sum, r) => sum + Number(r.commission_amount), 0);
   }, [referrals]);
 
   // Update referral code mutation
@@ -420,7 +432,7 @@ const Affiliate: React.FC = () => {
           </CardHeader>
           <CardContent className="p-3 sm:p-6 pt-0">
             <p className="text-2xl sm:text-3xl font-bold text-primary">
-              ${Number(stats?.total_earned || 0).toFixed(2)}
+              ${actualEarned.toFixed(2)}
             </p>
           </CardContent>
         </Card>
@@ -435,7 +447,7 @@ const Affiliate: React.FC = () => {
           <CardContent className="p-3 sm:p-6 pt-0">
             <p className="text-2xl sm:text-3xl font-bold text-foreground">
               {referrals && referrals.length > 0 
-                ? `${((referrals.filter(r => r.status === 'paid').length / referrals.length) * 100).toFixed(0)}%`
+                ? `${((referrals.filter(r => r.status === 'paid' && r.referred?.plan_type && paidPlans.includes(r.referred.plan_type)).length / referrals.length) * 100).toFixed(0)}%`
                 : '0%'
               }
             </p>

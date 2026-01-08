@@ -123,7 +123,11 @@ const AdminPartners: React.FC = () => {
           }));
 
           const referredCount = referralDetails.length;
-          const totalRevenue = referralDetails.reduce((sum, r) => sum + r.commission_amount, 0);
+          // Only count revenue from referrals with paid status AND referred user has paid plan (pro, business, enterprise)
+          const paidPlans = ['pro', 'business', 'enterprise'];
+          const totalRevenue = referralDetails
+            .filter(r => r.status === 'paid' && paidPlans.includes(r.referred_plan))
+            .reduce((sum, r) => sum + r.commission_amount, 0);
 
           return {
             ...profile,
