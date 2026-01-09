@@ -442,120 +442,261 @@ serve(async (req) => {
     const targetUnit = urlUnitMatch ? urlUnitMatch[1].toUpperCase() : null;
     console.log('Target unit from URL:', targetUnit, '| Full URL:', url);
 
-    const systemPrompt = `You are PropWealth AI Data Extractor. Your ONLY job is to extract raw property data from listings.
+    const systemPrompt = `You are a MISSION-CRITICAL Real Estate Deep Scan Engine.
+Your outputs are used for REAL MONEY investment decisions.
+ABSOLUTE ACCURACY is mandatory.
+Wrong data is WORSE than missing data.
+FAILURE is preferable to HALLUCINATION.
 
-=== UNIVERSAL DATA EXTRACTION STRATEGY (PRIORITY ORDER) ===
+====================================================
+GLOBAL EXECUTION MODE (MANDATORY)
+====================================================
+You are interpreting a FULLY RENDERED real estate listing page as a human would see it.
+The page has been:
+- Fully accessed in a real browser environment
+- Completely rendered (React/Vue/Angular ready)
+- Scrolled from top to bottom
+- Visually analyzed to identify layout hierarchy
 
-PRIORITY A - HIDDEN METADATA (CHECK FIRST):
-Before reading visible text, search the HTML source for structured data:
-1. Look for <script type="application/ld+json"> tags
-2. Extract from these JSON-LD fields (in order of preference):
-   - offers.price or price → This is the LISTING PRICE
-   - address.streetAddress → Property address
-   - numberOfRooms, numberOfBedrooms, numberOfBathrooms
-   - floorSize → Square footage
-3. Most sites (Zillow, Realtor, Redfin) embed accurate data in JSON-LD
-4. JSON-LD data is MORE RELIABLE than visible text - use it when available
+====================================================
+PRIMARY LISTING CONTAINER (CRITICAL)
+====================================================
+Before extracting ANY data, you MUST identify the PRIMARY LISTING CONTAINER.
+The PRIMARY LISTING CONTAINER is defined as:
+- The section that visually contains:
+  - Property address
+  - Main price (visually dominant typography)
+  - Beds / Baths / Sqft
+- Usually located ABOVE THE FOLD
+- Visually DOMINANT
+- CENTRAL to the page
 
-PRIORITY B - SEMANTIC SELECTORS (if no JSON-LD):
-1. Find the <h1> element → Usually contains the address
-2. Look for price in the "Hero Section" (top of page, visually prominent)
-3. Use data-testid="price" attribute if present
-4. Price adjacent to H1 is usually correct
+You are STRICTLY FORBIDDEN from extracting data outside this container by default.
 
-=== CONTENT ISOLATION (ANTI-HALLUCINATION) ===
-STRICTLY IGNORE these sections - they contain data from OTHER properties:
-- "Nearby Homes"
-- "Similar Homes" / "Similar Listings"
-- "Other Units For Sale"
-- "Building Units"
-- "Recently Sold"
-- "Price History of Neighbors"
-- "Sponsored" listings
-- "Recommended For You"
-- Footer sections with multiple properties
+====================================================
+PURCHASE PRICE — ZERO TOLERANCE
+====================================================
+Extract ONLY the official listing price.
+Valid price requirements:
+- Visually dominant typography
+- Directly associated with the property address
+- Explicitly labeled as "Price", "Listed for", "Asking Price", or equivalent
 
-FOCUS ONLY ON: The main "Listing Detail Container" - the primary property card/section.
+You MUST IGNORE:
+- Zestimate / Redfin Estimate / Any AI estimates
+- "Suggested offer" prices
+- Comparable/Similar home prices
+- Market averages or medians
+- Price history entries
 
-${targetUnit ? `=== UNIT SPECIFICITY FILTER ===
+If multiple prices exist:
+- Choose ONLY the one in the PRIMARY LISTING CONTAINER
+- If ambiguity exists → return price as NULL and set "price_ambiguous": true
+
+You are NEVER allowed to guess a purchase price.
+
+${targetUnit ? `====================================================
+UNIT SPECIFICITY FILTER
+====================================================
 TARGET UNIT: ${targetUnit}
 YOU MUST ONLY EXTRACT DATA FOR THIS SPECIFIC UNIT.
 - The List Price MUST be for unit ${targetUnit} ONLY
-- If you see multiple prices, use ONLY the one in the main listing header for ${targetUnit}` : 'Extract data for the primary listing only.'}
+- If you see multiple prices, use ONLY the one in the main listing header for ${targetUnit}
+- IGNORE all other units on the page` : ''}
 
-=== TERMINOLOGY NORMALIZATION (CROSS-PLATFORM) ===
-Recognize synonyms for the same field regardless of source:
-- PRICE: "List Price", "Asking Price", "Sale Price", "Price" → listing_price
-- TAXES: "Property Taxes", "Annual Tax", "Tax Assessment", "Real Estate Taxes" → property_taxes_annual  
-- HOA: "HOA Fee", "Association Fee", "Condo Fee", "Maintenance Fee", "Common Charges" → hoa_fees
-- RENT: "Rent Zestimate", "Estimated Rent", "Rental Estimate" → estimated_monthly_rent
+====================================================
+MONTHLY RENT EXTRACTION
+====================================================
+Rent extraction priority:
+1. Explicit "Rent Zestimate" or platform-provided rent
+2. Explicit rental price in description ("For Rent: $X/month")
+3. Market rent estimation ONLY if no rent data exists
 
-=== EXPENSE EXTRACTION LOGIC (FACTS vs ESTIMATES) ===
-1. NEVER assume a fixed tax rate (e.g., 1.2%) if the real value is on the page
-2. Search specifically for "Monthly Payment Calculator" or "Cost Calculator" sections
-3. Extract the value labeled as "Property Tax" or "Taxes"
-4. If value is ANNUAL, divide by 12 for monthly
-5. If value is MONTHLY, multiply by 12 for annual
-6. ONLY if no value exists → mark as "Estimated" and use 1.5% of purchase price
-7. Include source: "extracted" or "estimated" for each expense field
+Every rent value MUST be labeled with:
+- source: "extracted" | "estimated" | "inferred"
+- extraction_method: how the value was obtained
+- confidence_score: 0-1
 
-=== PRICE VALIDATION ===
-- If extracted price is $0 or null → DO NOT GUESS
-- Return error: "price_extraction_failed": true
-- Include: "manual_review_required": true
-- Provide: "visible_prices_found": [array of all dollar amounts seen]
+If estimated, provide:
+- Estimation method used
+- Confidence score
 
-=== CO-OP PRICE SANITY CHECK ===
-Co-ops often sell for $100k-$200k despite high Zestimates.
-- If ownership_type = "coop" AND price > $350,000
-- RE-SCAN for a lower price in the main header
-- Co-ops have LOW purchase prices but HIGH monthly fees
-- The lower price is ALWAYS correct for co-ops
+====================================================
+OPERATING EXPENSES — STRICT EXTRACTION
+====================================================
+Extract ONLY expenses EXPLICITLY stated in the listing:
+- Property taxes (look for "Property Tax", "Real Estate Tax", "Annual Tax")
+- HOA fees (look for "HOA Fee", "Association Fee", "Condo Fee", "Common Charges")
+- Insurance (look for "Homeowners Insurance", "Insurance Estimate")
+- Utilities (if listed)
+- Special assessments
 
-JURISDICTION: ${jurisdiction.code}
-CURRENCY: ${jurisdiction.currency}
+If an expense is NOT explicitly stated:
+- Apply deterministic estimation rules
+- Mark the value as "is_estimated": true
+- NEVER mix extracted and estimated values silently
 
-Return a JSON object with this EXACT structure:
+Each expense field MUST include:
 {
-  "property_id": "string (UUID)",
-  "extracted_unit": "string (the unit number you found - e.g. '7I')",
+  "value": number,
+  "is_estimated": boolean,
+  "source": "extracted" | "estimated",
+  "visual_location": "string describing where it was found or 'N/A'"
+}
+
+====================================================
+OWNERSHIP & LEGAL VALIDATION
+====================================================
+Detect and flag:
+- "Leasehold" / "Land Lease" / "Ground Lease"
+- "Co-op" / "Cooperative"
+- "Shared ownership"
+- "Rental restrictions" / "No rentals allowed"
+- "HOA limitations"
+
+Any detected legal complexity MUST trigger a critical warning.
+Default to "fee_simple" ONLY if no ownership indicators found.
+
+====================================================
+ANTI-HALLUCINATION GUARANTEE
+====================================================
+You are STRICTLY FORBIDDEN from:
+- INVENTING numbers that are not on the page
+- PULLING values from "similar homes" or "nearby properties"
+- USING averages without explicit labeling
+- ASSUMING missing data
+
+If data is missing → return NULL
+If confidence < 0.85 → return NULL + warning
+If multiple conflicting values → return NULL + "manual_review_required": true
+
+====================================================
+DATA EXTRACTION PRIORITY ORDER
+====================================================
+PRIORITY A - HIDDEN METADATA (CHECK FIRST):
+1. Search HTML for <script type="application/ld+json"> tags
+2. Extract from JSON-LD fields:
+   - offers.price → listing_price
+   - address.streetAddress → property address
+   - numberOfBedrooms, numberOfBathrooms, floorSize
+3. JSON-LD is MORE RELIABLE than visible text
+4. Set "extraction_method": "json_ld" when used
+
+PRIORITY B - SEMANTIC SELECTORS:
+1. Find <h1> element → Usually the address
+2. Price with data-testid="price" attribute
+3. Price in "Hero Section" (top, visually prominent)
+4. Set "extraction_method": "semantic_selector"
+
+PRIORITY C - VISUAL SCAN:
+1. Largest price on page within PRIMARY LISTING CONTAINER
+2. Set "extraction_method": "visual_scan"
+
+====================================================
+CONTENT ISOLATION (MANDATORY)
+====================================================
+STRICTLY IGNORE these sections:
+- "Nearby Homes" / "Similar Homes" / "Similar Listings"
+- "Other Units For Sale" / "Building Units" / "Units in Building"
+- "Recently Sold" / "Price History of Neighbors"
+- "Sponsored" / "Advertisements"
+- "Recommended For You"
+- Footer sections with multiple properties
+- Sidebar recommendations
+
+FOCUS ONLY ON: The PRIMARY LISTING CONTAINER
+
+====================================================
+OUTPUT FORMAT (MANDATORY)
+====================================================
+Return a JSON object with this EXACT structure. Every numerical field MUST include metadata:
+
+{
+  "property_id": "UUID",
+  "extracted_unit": "string (the unit number found, e.g., '7I') or null",
   "extraction_metadata": {
     "json_ld_found": boolean,
-    "price_source": "json_ld" | "data_testid" | "hero_section" | "manual_search",
+    "primary_container_identified": boolean,
+    "price_source": "json_ld" | "semantic_selector" | "visual_scan" | "user_input",
     "taxes_source": "extracted" | "estimated",
     "rent_source": "rent_zestimate" | "page_text" | "estimated",
-    "confidence_score": number (0-100)
+    "overall_confidence_score": number (0-100),
+    "extraction_warnings": ["array of any issues encountered"]
   },
   "raw_data": {
-    "purchase_price": number (MUST be EXACTLY the listing price for THIS unit - NOT an estimate),
-    "listing_price": number (THE EXACT LIST PRICE shown on the page for THIS unit - REQUIRED),
-    "estimated_monthly_rent": number (see RENT EXTRACTION RULES below),
-    "rent_zestimate": number or null (look for "Rent Zestimate" specifically),
-    "is_rent_estimated": boolean (true if you had to estimate, false if found on page),
-    "hoa_fees": number or null (MONTHLY amount only),
-    "hoa_source": "extracted" | "estimated",
-    "property_taxes_annual": number or null (ANNUAL amount only),
-    "taxes_source": "extracted" | "estimated",
-    "insurance_annual": number or null (ANNUAL amount only),
-    "insurance_source": "extracted" | "estimated",
+    "purchase_price": {
+      "value": number or null,
+      "currency": "${jurisdiction.currency}",
+      "source": "extracted" | "user_input",
+      "extraction_method": "json_ld" | "semantic_selector" | "visual_scan",
+      "visual_location": "string describing where found (e.g., 'Main header above fold')",
+      "confidence_score": number (0-1),
+      "is_estimated": false
+    },
+    "listing_price": {
+      "value": number or null,
+      "currency": "${jurisdiction.currency}",
+      "source": "extracted",
+      "extraction_method": "json_ld" | "semantic_selector" | "visual_scan",
+      "visual_location": "string",
+      "confidence_score": number (0-1),
+      "is_estimated": false
+    },
+    "estimated_monthly_rent": {
+      "value": number,
+      "currency": "${jurisdiction.currency}",
+      "source": "extracted" | "estimated" | "inferred",
+      "extraction_method": "rent_zestimate" | "description_text" | "sqft_calculation" | "one_percent_rule",
+      "visual_location": "string or 'N/A'",
+      "confidence_score": number (0-1),
+      "is_estimated": boolean
+    },
+    "rent_zestimate": number or null,
+    "hoa_fees": {
+      "value": number or null,
+      "currency": "${jurisdiction.currency}",
+      "source": "extracted" | "estimated",
+      "visual_location": "string or 'N/A'",
+      "confidence_score": number (0-1),
+      "is_estimated": boolean,
+      "frequency": "monthly" | "annual"
+    },
+    "property_taxes_annual": {
+      "value": number or null,
+      "currency": "${jurisdiction.currency}",
+      "source": "extracted" | "estimated",
+      "visual_location": "string or 'N/A'",
+      "confidence_score": number (0-1),
+      "is_estimated": boolean
+    },
+    "insurance_annual": {
+      "value": number or null,
+      "currency": "${jurisdiction.currency}",
+      "source": "extracted" | "estimated",
+      "visual_location": "string or 'N/A'",
+      "confidence_score": number (0-1),
+      "is_estimated": boolean
+    },
     "ownership_type": "fee_simple" | "leasehold" | "land_lease" | "coop",
-    "property_type": "apartment" | "house" | "commercial" | "land",
+    "ownership_detection_source": "string (where ownership type was identified)",
+    "property_type": "apartment" | "house" | "condo" | "townhouse" | "commercial" | "land",
     "location_quality": "prime" | "good" | "average" | "developing",
     "beds": number or null,
     "baths": number or null,
     "sqft": number or null,
     "year_built": number or null,
-    "description_hints": ["array of keywords"],
+    "description_hints": ["array of relevant keywords found"],
+    "price_ambiguous": boolean (true if multiple conflicting prices found),
     "price_extraction_failed": boolean (true if price could not be extracted),
-    "manual_review_required": boolean (true if data is unreliable),
-    "visible_prices_found": [array of all dollar amounts found on page]
+    "manual_review_required": boolean (true if data reliability is questionable),
+    "visible_prices_found": [array of ALL dollar amounts seen on page - for debugging]
   },
   "ai_analysis": {
     "verdict": "BUY" | "NEGOTIATE" | "AVOID",
     "confidence": number (0-100),
-    "reasoning": "string (detailed explanation in ${targetLang})",
-    "tax_strategy": "string (localized strategy in ${targetLang})",
-    "negotiation_script": "string (persuasive script in ${targetLang})",
+    "reasoning": "detailed explanation in ${targetLang}",
+    "tax_strategy": "localized strategy in ${targetLang}",
+    "negotiation_script": "persuasive script in ${targetLang}",
     "red_flags": ["array in ${targetLang}"],
     "strengths": ["array in ${targetLang}"],
     "forced_appreciation": "string in ${targetLang}",
@@ -582,87 +723,141 @@ Return a JSON object with this EXACT structure:
   ]
 }
 
-=== RENT EXTRACTION RULES (CRITICAL - NEVER RETURN $0) ===
-If no rent is found, you MUST provide an estimate using these priorities:
+====================================================
+RENT ESTIMATION RULES (if not found on page)
+====================================================
+If no explicit rent found, estimate using this priority:
+1. FIRST: "Rent Zestimate" or platform estimate → mark source: "rent_zestimate"
+2. SECOND: sqft * $2.50 → mark source: "estimated", method: "sqft_calculation"
+3. THIRD: listing_price * 0.01 → mark source: "estimated", method: "one_percent_rule"
+4. USE THE LOWER of methods 2 and 3
+5. Set is_estimated: true for any estimated rent
+6. NEVER return rent as $0 - always provide an estimate if not found
 
-1. FIRST: Search for "Rent Zestimate" or "Estimated Rent" text on the page
-2. SECOND: If sqft is available, calculate: rent = sqft * 2.50 ($/sqft method)
-3. THIRD: Calculate: rent = listing_price * 0.01 (1% rule - more conservative)
-4. FINAL STEP: Use the LOWER of methods 2 and 3 above
+====================================================
+EXPENSE ESTIMATION RULES (if not found on page)
+====================================================
+- Property taxes: 1.5% of purchase price annually → mark is_estimated: true
+- Insurance: 0.5% of purchase price annually → mark is_estimated: true
+- HOA: $0 if not stated (do NOT estimate) → value: null
 
-Example: For a 650 sqft co-op at $139,000:
-- Method 2: 650 * 2.50 = $1,625/month
-- Method 3: 139000 * 0.01 = $1,390/month
-- Use: $1,390 (the lower value)
+====================================================
+CO-OP PRICE VALIDATION
+====================================================
+Co-ops often sell for $100k-$200k despite high Zestimates.
+If ownership_type = "coop" AND extracted price > $350,000:
+- RE-SCAN for a lower price in the main header
+- The lower price is ALWAYS correct for co-ops
+- Flag for manual review if uncertain
 
-Set "is_rent_estimated": true when you estimate
-NEVER return estimated_monthly_rent as 0 - ALWAYS provide a value
-
-=== EXPENSE EXTRACTION RULES (NO DOUBLE COUNTING) ===
-- hoa_fees: MONTHLY amount only
-- property_taxes_annual: ANNUAL amount only (separate from HOA)
-- insurance_annual: ANNUAL amount only
-- Separate multi-item "monthly expenses" correctly
-
-=== OWNERSHIP TYPE DETECTION ===
-- Look for: "Leasehold", "Land Lease", "Ground Lease", "Co-op", "Cooperative"
-- Default to "fee_simple" if not stated
-- CRITICAL for valuations!
-
-=== MARKET COMPARABLES RULES ===
-1. Return EXACTLY 3 comparables
+====================================================
+MARKET COMPARABLES RULES
+====================================================
+1. Return EXACTLY 3 comparables (or fewer if not available)
 2. Sort by most recently sold first
 3. Limit search to 0.5 miles, similar sqft (+/- 20%)
-4. If Leasehold, use ONLY Leasehold comparables
+4. If Leasehold → use ONLY Leasehold comparables
 5. NEVER use the target listing as a comparable
 
-ALL text content must be in ${targetLang}.
-TAX FRAMEWORK: ${jurisdiction.taxInfo}`;
+====================================================
+FINAL OBJECTIVE
+====================================================
+Your output must allow a professional investor to:
+- FULLY TRUST the numbers
+- CLEARLY SEE where each number came from
+- DISTINGUISH factual data from estimates
+- Make capital decisions without hidden assumptions
+
+You are optimizing for:
+TRUST > PRECISION > CAPITAL PRESERVATION
+Not speed. Not completion. Not optimism.
+
+JURISDICTION: ${jurisdiction.code}
+CURRENCY: ${jurisdiction.currency}
+TAX FRAMEWORK: ${jurisdiction.taxInfo}
+LANGUAGE FOR AI ANALYSIS: ${targetLang}`;
 
     const userPrompt = mode === 'deep_scan' && url ? 
-      `EXTRACT DATA from this property listing:
+      `====================================================
+MISSION: EXTRACT DATA FROM THIS PROPERTY LISTING
+====================================================
 
 URL: ${url}
-${targetUnit ? `\n=== CRITICAL: UNIT FILTER ===\nTARGET UNIT: ${targetUnit}\nONLY extract data for unit ${targetUnit}. IGNORE all other units on the page.\n` : ''}
-${purchasePrice ? `User Override Price: ${purchasePrice} (USE THIS EXACT VALUE for purchase_price)` : 'EXTRACT the actual listing price shown on the page - do NOT estimate market value'}
-${monthlyRent ? `User Override Rent: ${monthlyRent}` : 'If rent is missing, estimate using the rules provided. NEVER return $0.'}
+${targetUnit ? `\n=== CRITICAL: UNIT FILTER ===\nTARGET UNIT: ${targetUnit}\nONLY extract data for unit ${targetUnit}. IGNORE all other units.\n` : ''}
+${purchasePrice ? `\n=== USER OVERRIDE ===\nUser Provided Price: ${purchasePrice}\nUSE THIS EXACT VALUE for purchase_price. Set source: "user_input"` : '\n=== PRICE EXTRACTION ===\nEXTRACT the actual listing price. Do NOT estimate market value.\nIf extraction fails, set price_extraction_failed: true'}
+${monthlyRent ? `User Provided Rent: ${monthlyRent}` : '\n=== RENT EXTRACTION ===\nIf rent not found, estimate using the rules. NEVER return $0.'}
 
-=== MANDATORY EXTRACTION WORKFLOW ===
-STEP 1 - CHECK JSON-LD FIRST:
-- Search for <script type="application/ld+json"> in page source
+====================================================
+MANDATORY EXECUTION WORKFLOW
+====================================================
+
+STEP 1 — IDENTIFY PRIMARY LISTING CONTAINER:
+- Locate the main content area with address + price + beds/baths
+- This is your ONLY extraction zone
+- Report what you identified in extraction_metadata
+
+STEP 2 — CHECK JSON-LD METADATA:
+- Search for <script type="application/ld+json">
 - Extract: offers.price, address.streetAddress, numberOfBedrooms, floorSize
-- If found, these values take PRIORITY over visible text
+- If found, these values take PRIORITY
+- Set extraction_method: "json_ld"
 
-STEP 2 - PRICE EXTRACTION:
-- ${purchasePrice ? `USE USER OVERRIDE: ${purchasePrice}` : 'Find listing price in JSON-LD OR main header'}
+STEP 3 — PRICE EXTRACTION (ZERO TOLERANCE):
+${purchasePrice ? `- USE USER OVERRIDE: ${purchasePrice}` : `- Find listing price in JSON-LD first
+- If not in JSON-LD, find in main header (visually dominant)
 - REJECT: Zestimate, estimates, "similar homes" prices, price history
-- If price = $0 or null, set "price_extraction_failed": true
+- If multiple prices found and ambiguous → set price_ambiguous: true
+- If price = $0 or null → set price_extraction_failed: true
+- NEVER guess the price`}
 
-STEP 3 - EXPENSE EXTRACTION:
-- Search for "Monthly Payment Calculator" or "Costs" section
+STEP 4 — EXPENSE EXTRACTION:
+- Search for "Monthly Payment Calculator", "Costs", "Fees" sections
 - Extract ACTUAL values for taxes, HOA, insurance
-- Mark each as "extracted" or "estimated" in the source fields
+- For each value, record:
+  - source: "extracted" or "estimated"
+  - visual_location: where you found it
+  - confidence_score: your confidence (0-1)
 - NEVER use generic rates if real values are visible
 
-STEP 4 - CONTENT ISOLATION:
-- IGNORE: "Nearby Homes", "Similar Listings", "Other Units", "Sponsored"
-- FOCUS ONLY on the main listing container
+STEP 5 — OWNERSHIP TYPE DETECTION:
+- Look for: "Leasehold", "Co-op", "Cooperative", "Land Lease"
+- Record where you found ownership information
+- Default to "fee_simple" ONLY if nothing found
 
-STEP 5 - VALIDATION:
-- Verify extracted_unit matches "${targetUnit || 'main listing'}"
-- If price seems wrong (e.g., too high for co-op), re-scan
+STEP 6 — CONTENT ISOLATION:
+- COMPLETELY IGNORE: "Nearby Homes", "Similar Listings", "Other Units", "Sponsored", "Building Units"
+- Extract ONLY from PRIMARY LISTING CONTAINER
+
+STEP 7 — VALIDATION:
+- Verify extracted_unit matches target: "${targetUnit || 'main listing'}"
+- If price seems wrong for property type (e.g., too high for co-op), flag for review
+- If confidence < 0.85 on any critical field → set manual_review_required: true
+
+====================================================
+ANTI-HALLUCINATION CHECKLIST
+====================================================
+Before returning, verify:
+[ ] Price came from PRIMARY LISTING CONTAINER only
+[ ] No data from "Similar Homes" or "Nearby" sections
+[ ] All estimated values clearly marked is_estimated: true
+[ ] All sources documented in extraction_method fields
+[ ] Confidence scores are realistic (not all 1.0)
+[ ] visible_prices_found contains ALL prices seen (for audit)
 
 Return valid JSON only.` :
-      `EXTRACT DATA for this property:
+      `====================================================
+QUICK ANALYSIS MODE
+====================================================
 
 Property: ${address}
 Purchase Price: ${purchasePrice}
-Monthly Rent: ${monthlyRent || 'Estimate at 1% of purchase price if unknown - NEVER return $0'}
+Monthly Rent: ${monthlyRent || 'Estimate at 1% of purchase price - NEVER return $0'}
 
-=== EXTRACTION WORKFLOW ===
-1. Use provided purchase price directly
-2. Extract or estimate rent (minimum 1% of price)
-3. Mark all estimated values with appropriate source fields
+WORKFLOW:
+1. Use provided purchase price directly → source: "user_input"
+2. Use provided rent or estimate → mark is_estimated if estimated
+3. Mark ALL estimated values with is_estimated: true
+4. Provide AI analysis based on the numbers
 
 Return valid JSON only.`;
 
@@ -738,16 +933,52 @@ Return valid JSON only.`;
     const extractionMetadata = extractedData.extraction_metadata || {};
     console.log('Extraction metadata:', {
       json_ld_found: extractionMetadata.json_ld_found || false,
+      primary_container_identified: extractionMetadata.primary_container_identified || false,
       price_source: extractionMetadata.price_source || 'unknown',
       taxes_source: extractionMetadata.taxes_source || 'unknown',
       rent_source: extractionMetadata.rent_source || 'unknown',
-      confidence_score: extractionMetadata.confidence_score || 0,
+      overall_confidence_score: extractionMetadata.overall_confidence_score || 0,
+      extraction_warnings: extractionMetadata.extraction_warnings || [],
     });
 
-    // ============= PRICE EXTRACTION VALIDATION =============
+    // ============= PRICE EXTRACTION VALIDATION (ZERO TOLERANCE) =============
+    // Handle new structured format where price might be an object
+    const rawPriceData = extractedData.raw_data?.purchase_price;
+    const rawListingPriceData = extractedData.raw_data?.listing_price;
+    
+    // Extract price value whether it's a number or an object with value property
+    const aiPurchasePrice = typeof rawPriceData === 'object' ? rawPriceData?.value : rawPriceData;
+    const aiListingPriceValue = typeof rawListingPriceData === 'object' ? rawListingPriceData?.value : rawListingPriceData;
+    
+    const priceAmbiguous = extractedData.raw_data?.price_ambiguous || false;
     const priceExtractionFailed = extractedData.raw_data?.price_extraction_failed || false;
     const manualReviewRequired = extractedData.raw_data?.manual_review_required || false;
     const visiblePricesFound = extractedData.raw_data?.visible_prices_found || [];
+
+    // Log price extraction details for transparency
+    console.log('Price extraction details:', {
+      rawPriceData,
+      rawListingPriceData,
+      aiPurchasePrice,
+      aiListingPriceValue,
+      priceAmbiguous,
+      priceExtractionFailed,
+      visiblePricesFound,
+    });
+
+    if (priceAmbiguous && !purchasePrice) {
+      console.warn('PRICE AMBIGUOUS - Multiple conflicting prices found');
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'price_ambiguous',
+        message: 'Multiple conflicting prices found on the page. Please enter the correct price manually.',
+        visible_prices: visiblePricesFound,
+        manual_review_required: true,
+      }), {
+        status: 422,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     if (priceExtractionFailed && !purchasePrice) {
       console.error('PRICE EXTRACTION FAILED - Manual review required');
@@ -766,12 +997,23 @@ Return valid JSON only.`;
     }
 
     // PRIORITY: 1) User input, 2) AI listing_price (NEVER estimated market value)
-    const aiListingPrice = extractedData.raw_data?.listing_price || 0;
-    const aiFallbackPrice = extractedData.raw_data?.purchase_price || 0;
+    const aiListingPrice = aiListingPriceValue || 0;
+    const aiFallbackPrice = aiPurchasePrice || 0;
     
     // CRITICAL: Use listing price, never AI estimates
     let finalPrice = purchasePrice || aiListingPrice || aiFallbackPrice;
-    const priceSource = purchasePrice ? 'user_input' : (aiListingPrice ? 'listing_price' : 'ai_estimated');
+    let priceSource: 'user_input' | 'listing_price' | 'ai_estimated' = purchasePrice ? 'user_input' : (aiListingPrice ? 'listing_price' : 'ai_estimated');
+    
+    // Extract additional price metadata if available
+    const priceExtractionMethod = typeof rawListingPriceData === 'object' 
+      ? rawListingPriceData?.extraction_method 
+      : extractionMetadata.price_source || 'unknown';
+    const priceConfidenceFromAI = typeof rawListingPriceData === 'object'
+      ? rawListingPriceData?.confidence_score
+      : null;
+    const priceVisualLocation = typeof rawListingPriceData === 'object'
+      ? rawListingPriceData?.visual_location
+      : 'unknown';
 
     // Additional validation: if price is 0 after all attempts, fail
     if (!finalPrice || finalPrice <= 0) {
@@ -794,15 +1036,25 @@ Return valid JSON only.`;
       aiFallbackPrice, 
       finalPrice,
       priceSource,
-      extractionMethod: extractionMetadata.price_source || 'unknown',
+      extractionMethod: priceExtractionMethod,
+      confidence: priceConfidenceFromAI,
+      visualLocation: priceVisualLocation,
     });
 
     // ============= RENT FALLBACK LOGIC (NEVER $0) =============
-    // Use 1% of price OR $2.50/sqft, whichever is LOWER
-    let estimatedRent = monthlyRent || extractedData.raw_data?.estimated_monthly_rent || 0;
-    let isRentEstimated = extractedData.raw_data?.is_rent_estimated || false;
-    const sqft = extractedData.raw_data?.sqft || 0;
-    const rentSource = extractedData.raw_data?.rent_source || (monthlyRent ? 'user_input' : 'unknown');
+    // Handle new structured format where rent might be an object
+    const rawRentData = extractedData.raw_data?.estimated_monthly_rent;
+    let estimatedRent = monthlyRent || (typeof rawRentData === 'object' ? rawRentData?.value : rawRentData) || 0;
+    let isRentEstimated = typeof rawRentData === 'object' ? rawRentData?.is_estimated : (extractedData.raw_data?.is_rent_estimated || false);
+    const rentExtractionMethod = typeof rawRentData === 'object' ? rawRentData?.extraction_method : 'unknown';
+    
+    // Handle sqft whether it's a number or object
+    const rawSqft = extractedData.raw_data?.sqft;
+    const sqft = typeof rawSqft === 'object' ? rawSqft?.value : (rawSqft || 0);
+    
+    const rentSource = typeof rawRentData === 'object' 
+      ? rawRentData?.source 
+      : (extractedData.raw_data?.rent_source || (monthlyRent ? 'user_input' : 'unknown'));
     
     // Try rent zestimate first
     const rentZestimate = extractedData.raw_data?.rent_zestimate;
@@ -835,26 +1087,47 @@ Return valid JSON only.`;
       console.log('Emergency rent fallback:', estimatedRent);
     }
 
-    // ============= EXPENSE SOURCE TRACKING =============
-    const hoaSource = extractedData.raw_data?.hoa_source || 'estimated';
-    const taxesSource = extractedData.raw_data?.taxes_source || 'estimated';
-    const insuranceSource = extractedData.raw_data?.insurance_source || 'estimated';
+    // ============= EXPENSE SOURCE TRACKING (handle object format) =============
+    const rawHoaData = extractedData.raw_data?.hoa_fees;
+    const rawTaxesData = extractedData.raw_data?.property_taxes_annual;
+    const rawInsuranceData = extractedData.raw_data?.insurance_annual;
+    
+    const hoaValue = typeof rawHoaData === 'object' ? rawHoaData?.value : (rawHoaData || 0);
+    const taxesValue = typeof rawTaxesData === 'object' ? rawTaxesData?.value : rawTaxesData;
+    const insuranceValue = typeof rawInsuranceData === 'object' ? rawInsuranceData?.value : rawInsuranceData;
+    
+    const hoaSource = typeof rawHoaData === 'object' ? rawHoaData?.source : (extractedData.raw_data?.hoa_source || 'estimated');
+    const taxesSource = typeof rawTaxesData === 'object' ? rawTaxesData?.source : (extractedData.raw_data?.taxes_source || 'estimated');
+    const insuranceSource = typeof rawInsuranceData === 'object' ? rawInsuranceData?.source : (extractedData.raw_data?.insurance_source || 'estimated');
+    
+    const hoaIsEstimated = typeof rawHoaData === 'object' ? rawHoaData?.is_estimated : (hoaSource === 'estimated');
+    const taxesIsEstimated = typeof rawTaxesData === 'object' ? rawTaxesData?.is_estimated : (taxesSource === 'estimated');
+    const insuranceIsEstimated = typeof rawInsuranceData === 'object' ? rawInsuranceData?.is_estimated : (insuranceSource === 'estimated');
 
-    console.log('Expense sources:', { hoaSource, taxesSource, insuranceSource });
+    console.log('Expense sources:', { 
+      hoaSource, hoaValue, hoaIsEstimated,
+      taxesSource, taxesValue, taxesIsEstimated,
+      insuranceSource, insuranceValue, insuranceIsEstimated,
+    });
 
+    // Handle beds/baths whether number or object
+    const rawBeds = extractedData.raw_data?.beds;
+    const rawBaths = extractedData.raw_data?.baths;
+    const rawYearBuilt = extractedData.raw_data?.year_built;
+    
     const rawData: RawExtractedData = {
       purchase_price: finalPrice,
       listing_price: aiListingPrice || finalPrice,
       estimated_monthly_rent: estimatedRent,
-      hoa_fees: extractedData.raw_data?.hoa_fees || 0,
-      property_taxes_annual: extractedData.raw_data?.property_taxes_annual,
-      insurance_annual: extractedData.raw_data?.insurance_annual,
+      hoa_fees: hoaValue || 0,
+      property_taxes_annual: taxesValue,
+      insurance_annual: insuranceValue,
       property_type: extractedData.raw_data?.property_type,
       location_quality: extractedData.raw_data?.location_quality,
-      beds: extractedData.raw_data?.beds,
-      baths: extractedData.raw_data?.baths,
-      sqft: extractedData.raw_data?.sqft,
-      year_built: extractedData.raw_data?.year_built,
+      beds: typeof rawBeds === 'object' ? rawBeds?.value : rawBeds,
+      baths: typeof rawBaths === 'object' ? rawBaths?.value : rawBaths,
+      sqft: sqft,
+      year_built: typeof rawYearBuilt === 'object' ? rawYearBuilt?.value : rawYearBuilt,
       description_hints: extractedData.raw_data?.description_hints || [],
       ownership_type: extractedData.raw_data?.ownership_type || 'fee_simple',
     };
@@ -890,7 +1163,7 @@ Return valid JSON only.`;
       suggestedOfferPrice = Math.round(rawData.purchase_price * 0.95);
     }
 
-    // Build final response
+    // Build final response with full transparency on data sources
     const finalResult = {
       property_id: extractedData.property_id || crypto.randomUUID(),
       metadata: {
@@ -900,9 +1173,19 @@ Return valid JSON only.`;
         property_type: rawData.property_type || 'house',
         location_quality: rawData.location_quality || 'average',
         ownership_type: rawData.ownership_type || 'fee_simple',
+        ownership_detection_source: extractedData.raw_data?.ownership_detection_source || 'default',
         target_unit: targetUnit,
         extracted_unit: extractedUnit,
         unit_match: !targetUnit || targetUnit === extractedUnit,
+        // NEW: Full extraction transparency
+        extraction_transparency: {
+          json_ld_found: extractionMetadata.json_ld_found || false,
+          primary_container_identified: extractionMetadata.primary_container_identified || false,
+          overall_confidence_score: extractionMetadata.overall_confidence_score || 0,
+          extraction_warnings: extractionMetadata.extraction_warnings || [],
+          manual_review_required: manualReviewRequired,
+          visible_prices_on_page: visiblePricesFound,
+        },
       },
       financials: {
         purchase_price: rawData.purchase_price,
@@ -911,6 +1194,42 @@ Return valid JSON only.`;
         is_rent_estimated: isRentEstimated,
         ...calculatedMetrics,
         suggested_offer_price: suggestedOfferPrice,
+        // NEW: Field-level transparency
+        data_sources: {
+          price: {
+            value: rawData.purchase_price,
+            source: priceSource,
+            extraction_method: priceExtractionMethod,
+            visual_location: priceVisualLocation,
+            confidence_score: priceConfidenceFromAI || (priceSource === 'user_input' ? 1.0 : 0.8),
+            is_estimated: false,
+          },
+          rent: {
+            value: rawData.estimated_monthly_rent,
+            source: rentSource,
+            extraction_method: rentExtractionMethod,
+            confidence_score: isRentEstimated ? 0.7 : 0.9,
+            is_estimated: isRentEstimated,
+          },
+          hoa: {
+            value: hoaValue || 0,
+            source: hoaSource,
+            is_estimated: hoaIsEstimated,
+            frequency: 'monthly',
+          },
+          property_taxes: {
+            value: taxesValue || 0,
+            source: taxesSource,
+            is_estimated: taxesIsEstimated,
+            frequency: 'annual',
+          },
+          insurance: {
+            value: insuranceValue || 0,
+            source: insuranceSource,
+            is_estimated: insuranceIsEstimated,
+            frequency: 'annual',
+          },
+        },
       },
       raw_property_data: {
         beds: rawData.beds,
