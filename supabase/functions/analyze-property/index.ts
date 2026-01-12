@@ -6,9 +6,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// ============= DETERMINISTIC CALCULATION FUNCTIONS =============
-// These functions ensure consistent math - NO LLM involvement
+// ============= RENTCAST API CONFIGURATION =============
+const RENTCAST_BASE_URL = 'https://api.rentcast.io/v1';
 
+// ============= INTERFACES =============
 interface RawExtractedData {
   purchase_price: number;
   estimated_monthly_rent: number;
@@ -22,8 +23,8 @@ interface RawExtractedData {
   sqft?: number;
   year_built?: number;
   description_hints?: string[];
-  ownership_type?: string; // "fee_simple" | "leasehold" | "land_lease" | "coop"
-  listing_price?: number; // Original listing price from AI extraction
+  ownership_type?: string;
+  listing_price?: number;
 }
 
 interface ValidationWarning {
@@ -51,17 +52,68 @@ interface CalculatedMetrics {
   gross_rent_multiplier: number;
   debt_service_coverage: number;
   rehab_estimate: number;
-  // New validation fields
   price_confidence_score: number;
-  price_source: 'user_input' | 'listing_price' | 'ai_estimated';
+  price_source: 'user_input' | 'listing_price' | 'rentcast_avm' | 'estimated';
   validation_warnings: ValidationWarning[];
   expense_warning?: string;
 }
 
-function calculateDeterministicMetrics(raw: RawExtractedData, userProvidedPrice?: number, aiExtractedPrice?: number, comparables?: any[]): CalculatedMetrics {
+interface RentcastRentEstimate {
+  rent: number;
+  rentRangeLow: number;
+  rentRangeHigh: number;
+  comparables?: Array<{
+    formattedAddress: string;
+    price: number;
+    squareFootage: number;
+    bedrooms: number;
+    bathrooms: number;
+    daysOnMarket?: number;
+    distance?: number;
+    correlation?: number;
+  }>;
+}
+
+interface RentcastValueEstimate {
+  price: number;
+  priceRangeLow: number;
+  priceRangeHigh: number;
+  comparables?: Array<{
+    formattedAddress: string;
+    price: number;
+    squareFootage: number;
+    bedrooms: number;
+    bathrooms: number;
+    lastSaleDate?: string;
+    distance?: number;
+    correlation?: number;
+  }>;
+}
+
+interface RentcastPropertyDetails {
+  bedrooms?: number;
+  bathrooms?: number;
+  squareFootage?: number;
+  yearBuilt?: number;
+  propertyType?: string;
+  features?: string[];
+  assessorTaxAmount?: number;
+  addressLine1?: string;
+  city?: string;
+  state?: string;
+  zipCode?: string;
+}
+
+// ============= DETERMINISTIC CALCULATION FUNCTIONS =============
+function calculateDeterministicMetrics(
+  raw: RawExtractedData, 
+  userProvidedPrice?: number, 
+  rentcastPrice?: number,
+  comparables?: any[]
+): CalculatedMetrics {
   const validation_warnings: ValidationWarning[] = [];
   
-  // ============= STEP 1: OWNERSHIP TYPE VALIDATION =============
+  // ============= OWNERSHIP TYPE VALIDATION =============
   const ownershipType = raw.ownership_type?.toLowerCase() || 'fee_simple';
   const isLeasehold = ownershipType.includes('leasehold') || ownershipType.includes('land_lease') || ownershipType.includes('coop');
   
@@ -70,14 +122,13 @@ function calculateDeterministicMetrics(raw: RawExtractedData, userProvidedPrice?
       type: 'leasehold_detected',
       severity: 'critical',
       message: `Property is ${ownershipType.toUpperCase()} - NOT Fee Simple`,
-      details: 'Leasehold/Land Lease properties have different valuation metrics. Market averages for Fee Simple properties should NOT be used for comparison.',
+      details: 'Leasehold/Land Lease properties have different valuation metrics.',
     });
   }
 
-  // ============= STEP 2: PRICE SOURCE VALIDATION =============
-  // Priority: 1) User input, 2) Listing price, 3) AI estimated (NEVER use AI market estimates)
+  // ============= PRICE SOURCE VALIDATION =============
   let finalPrice = raw.purchase_price;
-  let priceSource: 'user_input' | 'listing_price' | 'ai_estimated' = 'ai_estimated';
+  let priceSource: 'user_input' | 'listing_price' | 'rentcast_avm' | 'estimated' = 'estimated';
   
   if (userProvidedPrice && userProvidedPrice > 0) {
     finalPrice = userProvidedPrice;
@@ -85,15 +136,17 @@ function calculateDeterministicMetrics(raw: RawExtractedData, userProvidedPrice?
   } else if (raw.listing_price && raw.listing_price > 0) {
     finalPrice = raw.listing_price;
     priceSource = 'listing_price';
+  } else if (rentcastPrice && rentcastPrice > 0) {
+    finalPrice = rentcastPrice;
+    priceSource = 'rentcast_avm';
   }
 
-  // ============= STEP 3: PRICE CONFIDENCE SCORING =============
+  // ============= PRICE CONFIDENCE SCORING =============
   let priceConfidenceScore = 100;
   
   if (comparables && comparables.length >= 2) {
-    // Calculate median of comparables
     const compPrices = comparables
-      .map(c => c.sale_price)
+      .map(c => c.price || c.sale_price)
       .filter(p => typeof p === 'number' && p > 0)
       .sort((a, b) => a - b);
     
@@ -104,90 +157,47 @@ function calculateDeterministicMetrics(raw: RawExtractedData, userProvidedPrice?
       
       const priceDifferential = Math.abs(finalPrice - median) / median;
       
-      // If price differs by more than 50% from median, flag it
       if (priceDifferential > 0.5) {
         priceConfidenceScore = Math.max(0, Math.round(100 - (priceDifferential * 100)));
         validation_warnings.push({
           type: 'price_mismatch',
           severity: 'critical',
-          message: `Listing price differs ${Math.round(priceDifferential * 100)}% from comparable median`,
-          details: `Listing: $${finalPrice.toLocaleString()}, Comparable Median: $${Math.round(median).toLocaleString()}. This requires MANUAL REVIEW.`,
+          message: `Price differs ${Math.round(priceDifferential * 100)}% from comparable median`,
+          details: `Listing: $${finalPrice.toLocaleString()}, Comparable Median: $${Math.round(median).toLocaleString()}`,
         });
       } else if (priceDifferential > 0.25) {
         priceConfidenceScore = Math.max(50, Math.round(100 - (priceDifferential * 50)));
         validation_warnings.push({
           type: 'price_mismatch',
           severity: 'warning',
-          message: `Listing price differs ${Math.round(priceDifferential * 100)}% from comparable median`,
-          details: `Listing: $${finalPrice.toLocaleString()}, Comparable Median: $${Math.round(median).toLocaleString()}. Consider verifying price accuracy.`,
+          message: `Price differs ${Math.round(priceDifferential * 100)}% from comparable median`,
+          details: `Consider verifying price accuracy.`,
         });
       }
     }
   }
 
-  // ============= STEP 4: EXPENSE SANITY CHECKS =============
+  // ============= EXPENSE CALCULATIONS =============
   const { estimated_monthly_rent } = raw;
   
-  // Extract fees - CRITICAL: Ensure no double-counting
   let hoa_fees_monthly = 0;
   if (raw.hoa_fees && raw.hoa_fees > 0) {
-    // Check if HOA seems to be annual (unlikely to be >$1000/month for most properties)
     if (raw.hoa_fees > 2000) {
-      // Likely annual - convert to monthly
       hoa_fees_monthly = Math.round(raw.hoa_fees / 12);
-      validation_warnings.push({
-        type: 'expense_anomaly',
-        severity: 'info',
-        message: 'HOA fees converted from annual to monthly',
-        details: `Original: $${raw.hoa_fees}, Converted: $${hoa_fees_monthly}/month`,
-      });
     } else {
       hoa_fees_monthly = raw.hoa_fees;
     }
   }
 
-  // Property taxes - CRITICAL: Must be annual, convert if seems monthly
-  let property_taxes_annual = 0;
-  if (raw.property_taxes_annual && raw.property_taxes_annual > 0) {
-    // If taxes seem too low to be annual, they might be monthly
-    if (raw.property_taxes_annual < 500 && finalPrice > 100000) {
-      // Likely monthly - convert to annual
-      property_taxes_annual = raw.property_taxes_annual * 12;
-      validation_warnings.push({
-        type: 'expense_anomaly',
-        severity: 'warning',
-        message: 'Property taxes appear to be monthly - converted to annual',
-        details: `Original: $${raw.property_taxes_annual}, Converted: $${property_taxes_annual}/year`,
-      });
-    } else {
-      property_taxes_annual = raw.property_taxes_annual;
-    }
-  } else {
-    // Default: 1.5% of property value annually
-    property_taxes_annual = Math.round(finalPrice * 0.015);
-  }
+  let property_taxes_annual = raw.property_taxes_annual || Math.round(finalPrice * 0.015);
+  let insurance_annual = raw.insurance_annual || Math.round(finalPrice * 0.005);
 
-  // Insurance - same check
-  let insurance_annual = 0;
-  if (raw.insurance_annual && raw.insurance_annual > 0) {
-    if (raw.insurance_annual < 100 && finalPrice > 100000) {
-      // Likely monthly
-      insurance_annual = raw.insurance_annual * 12;
-    } else {
-      insurance_annual = raw.insurance_annual;
-    }
-  } else {
-    // Default: 0.5% of property value annually
-    insurance_annual = Math.round(finalPrice * 0.005);
-  }
-
-  // ============= STEP 5: CALCULATE OpEx (NO DOUBLE COUNTING) =============
+  // ============= OpEx BREAKDOWN =============
   const annualRent = estimated_monthly_rent * 12;
   
-  // OpEx breakdown using industry standards
-  const property_management = Math.round(estimated_monthly_rent * 0.10); // 10% of rent
-  const vacancy = Math.round(estimated_monthly_rent * 0.06); // 6% vacancy factor
-  const maintenance = Math.round(estimated_monthly_rent * 0.05); // 5% maintenance
+  const property_management = Math.round(estimated_monthly_rent * 0.10);
+  const vacancy = Math.round(estimated_monthly_rent * 0.06);
+  const maintenance = Math.round(estimated_monthly_rent * 0.05);
   const insurance = Math.round(insurance_annual / 12);
   const property_taxes = Math.round(property_taxes_annual / 12);
   
@@ -206,40 +216,26 @@ function calculateDeterministicMetrics(raw: RawExtractedData, userProvidedPrice?
   // ============= EXPENSE RATIO CHECK =============
   const expenseRatio = operating_expenses / estimated_monthly_rent;
   let expense_warning: string | undefined;
-  let roiKiller: string | undefined;
   
   if (expenseRatio > 0.6) {
-    // Find the biggest expense contributor
     const expenseItems = [
-      { name: 'HOA Fees', value: hoa_fees_monthly, percent: (hoa_fees_monthly / operating_expenses) * 100 },
-      { name: 'Property Taxes', value: property_taxes, percent: (property_taxes / operating_expenses) * 100 },
-      { name: 'Insurance', value: insurance, percent: (insurance / operating_expenses) * 100 },
-      { name: 'Property Management', value: property_management, percent: (property_management / operating_expenses) * 100 },
-      { name: 'Vacancy', value: vacancy, percent: (vacancy / operating_expenses) * 100 },
-      { name: 'Maintenance', value: maintenance, percent: (maintenance / operating_expenses) * 100 },
+      { name: 'HOA Fees', value: hoa_fees_monthly },
+      { name: 'Property Taxes', value: property_taxes },
+      { name: 'Insurance', value: insurance },
     ].sort((a, b) => b.value - a.value);
     
     const topExpense = expenseItems[0];
-    roiKiller = topExpense.name;
-    expense_warning = `${topExpense.name} ($${topExpense.value}/mo) accounts for ${topExpense.percent.toFixed(0)}% of expenses and is severely impacting ROI`;
+    expense_warning = `${topExpense.name} ($${topExpense.value}/mo) is severely impacting ROI`;
     
     validation_warnings.push({
       type: 'expense_anomaly',
       severity: 'critical',
       message: `Operating expenses consume ${(expenseRatio * 100).toFixed(0)}% of rental income`,
       details: expense_warning,
-      affected_metric: roiKiller,
-    });
-  } else if (expenseRatio > 0.5) {
-    validation_warnings.push({
-      type: 'expense_anomaly',
-      severity: 'warning',
-      message: `Operating expenses consume ${(expenseRatio * 100).toFixed(0)}% of rental income`,
-      details: 'This is above the typical 40-50% range. Review individual expense items.',
     });
   }
   
-  // ============= STEP 6: CORE FINANCIAL METRICS =============
+  // ============= CORE FINANCIAL METRICS =============
   const net_operating_income_annual = annualRent - annual_opex;
   const cap_rate = finalPrice > 0 ? Number(((net_operating_income_annual / finalPrice) * 100).toFixed(2)) : 0;
   const one_percent_rule = finalPrice > 0 ? Number(((estimated_monthly_rent / finalPrice) * 100).toFixed(2)) : 0;
@@ -258,17 +254,15 @@ function calculateDeterministicMetrics(raw: RawExtractedData, userProvidedPrice?
   const annualCashFlow = net_operating_income_annual - annualDebtService;
   const cash_on_cash_return = totalCashInvested > 0 ? Number(((annualCashFlow / totalCashInvested) * 100).toFixed(2)) : 0;
   
-  // Debt Service Coverage Ratio
   const debt_service_coverage = annualDebtService > 0 ? Number((net_operating_income_annual / annualDebtService).toFixed(2)) : 0;
 
-  // ============= NEGATIVE CASHFLOW WARNINGS =============
+  // ============= CASHFLOW WARNINGS =============
   if (cap_rate < 0) {
     validation_warnings.push({
       type: 'negative_cashflow',
       severity: 'critical',
       message: `NEGATIVE Cap Rate: ${cap_rate}%`,
-      details: expense_warning || 'Operating expenses exceed rental income. This property LOSES MONEY before mortgage payments.',
-      affected_metric: roiKiller,
+      details: 'Operating expenses exceed rental income.',
     });
   } else if (cap_rate < 4) {
     validation_warnings.push({
@@ -284,34 +278,11 @@ function calculateDeterministicMetrics(raw: RawExtractedData, userProvidedPrice?
       type: 'negative_cashflow',
       severity: 'critical',
       message: `NEGATIVE Cash-on-Cash: ${cash_on_cash_return}%`,
-      details: expense_warning || 'After mortgage payments, this property will DRAIN your cash monthly.',
-      affected_metric: roiKiller,
-    });
-  } else if (cash_on_cash_return < 5) {
-    validation_warnings.push({
-      type: 'negative_cashflow',
-      severity: 'warning',
-      message: `Low Cash-on-Cash: ${cash_on_cash_return}%`,
-      details: 'Consider if this return justifies the investment risk.',
+      details: 'This property will drain cash monthly.',
     });
   }
   
-  // Rehab estimate based on description hints
-  let rehab_estimate = 5000;
-  if (raw.description_hints) {
-    const hints = raw.description_hints.join(' ').toLowerCase();
-    if (hints.includes('original') || hints.includes('vintage') || hints.includes('investor special')) {
-      rehab_estimate = 35000;
-    } else if (hints.includes('needs tlc') || hints.includes('as-is') || hints.includes('fixer')) {
-      rehab_estimate = 25000;
-    } else if (hints.includes('updated') || hints.includes('renovated') || hints.includes('remodeled')) {
-      rehab_estimate = 8000;
-    } else if (hints.includes('new construction') || hints.includes('move-in ready') || hints.includes('turnkey')) {
-      rehab_estimate = 2000;
-    } else {
-      rehab_estimate = 15000;
-    }
-  }
+  const rehab_estimate = 15000; // Default estimate
   
   return {
     operating_expenses,
@@ -331,8 +302,8 @@ function calculateDeterministicMetrics(raw: RawExtractedData, userProvidedPrice?
 }
 
 // Generate hash for cache key
-function generateInputHash(url: string, purchasePrice?: number, monthlyRent?: number): string {
-  const input = `${url}|${purchasePrice || 'auto'}|${monthlyRent || 'auto'}`;
+function generateInputHash(address: string, purchasePrice?: number, monthlyRent?: number): string {
+  const input = `${address}|${purchasePrice || 'auto'}|${monthlyRent || 'auto'}`;
   let hash = 0;
   for (let i = 0; i < input.length; i++) {
     const char = input.charCodeAt(i);
@@ -342,47 +313,161 @@ function generateInputHash(url: string, purchasePrice?: number, monthlyRent?: nu
   return Math.abs(hash).toString(16);
 }
 
-// Jurisdiction detection from URL or address
+// Jurisdiction detection from address
 function detectJurisdiction(input: string): { code: string; currency: string; taxInfo: string } {
-  const urlLower = input.toLowerCase();
+  const inputLower = input.toLowerCase();
   
-  if (urlLower.includes('dubizzle') || urlLower.includes('.ae') || urlLower.includes('dubai') || urlLower.includes('abu dhabi') || urlLower.includes('uae')) {
+  if (inputLower.includes('dubai') || inputLower.includes('abu dhabi') || inputLower.includes('uae')) {
     return { code: 'AE', currency: 'AED', taxInfo: '0% Income Tax, 4% DLD Transfer Fee, No Capital Gains Tax' };
   }
-  if (urlLower.includes('zillow') || urlLower.includes('redfin') || urlLower.includes('realtor.com') || urlLower.includes('.us') || /\b(fl|tx|ca|ny|nj|az|nv)\b/i.test(urlLower)) {
-    return { code: 'US', currency: 'USD', taxInfo: '1031 Exchange available, Depreciation deductions, State-specific taxes apply' };
+  if (/\b(fl|tx|ca|ny|nj|az|nv|usa|united states)\b/i.test(inputLower)) {
+    return { code: 'US', currency: 'USD', taxInfo: '1031 Exchange available, Depreciation deductions' };
   }
-  if (urlLower.includes('olx.com.br') || urlLower.includes('zapimoveis') || urlLower.includes('vivareal') || urlLower.includes('brazil') || urlLower.includes('brasil')) {
-    return { code: 'BR', currency: 'BRL', taxInfo: 'IRPF on rental income (progressive 7.5%-27.5%), ITBI transfer tax ~3%' };
+  if (inputLower.includes('brazil') || inputLower.includes('brasil')) {
+    return { code: 'BR', currency: 'BRL', taxInfo: 'IRPF on rental income (progressive 7.5%-27.5%)' };
   }
-  if (urlLower.includes('seloger') || urlLower.includes('leboncoin') || urlLower.includes('.fr') || urlLower.includes('paris') || urlLower.includes('france')) {
-    return { code: 'FR', currency: 'EUR', taxInfo: 'LMNP status available, Micro-foncier regime, Social charges ~17.2%' };
+  if (inputLower.includes('france') || inputLower.includes('paris')) {
+    return { code: 'FR', currency: 'EUR', taxInfo: 'LMNP status available, Micro-foncier regime' };
   }
-  if (urlLower.includes('idealista.pt') || urlLower.includes('imovirtual') || urlLower.includes('portugal') || urlLower.includes('lisbon') || urlLower.includes('porto')) {
-    return { code: 'PT', currency: 'EUR', taxInfo: 'NHR regime for tax benefits, IMT transfer tax 1-8%, Stamp duty 0.8%' };
-  }
-  if (urlLower.includes('idealista.com') || urlLower.includes('fotocasa') || urlLower.includes('spain') || urlLower.includes('españa') || urlLower.includes('madrid') || urlLower.includes('barcelona')) {
-    return { code: 'ES', currency: 'EUR', taxInfo: 'ITP transfer tax 6-10%, IRPF rental income tax, Regional variations' };
-  }
-  if (urlLower.includes('immobiliare.it') || urlLower.includes('casa.it') || urlLower.includes('italy') || urlLower.includes('italia') || urlLower.includes('roma') || urlLower.includes('milano')) {
-    return { code: 'IT', currency: 'EUR', taxInfo: 'Cedolare secca flat tax 21%, IMU property tax, Regional surcharges' };
-  }
-  if (urlLower.includes('fang.com') || urlLower.includes('anjuke') || urlLower.includes('lianjia') || urlLower.includes('china') || urlLower.includes('shanghai') || urlLower.includes('beijing')) {
-    return { code: 'ZH', currency: 'CNY', taxInfo: 'Deed tax 1-3%, VAT on sales, Rental income tax 5-20%' };
+  if (inputLower.includes('portugal') || inputLower.includes('lisbon')) {
+    return { code: 'PT', currency: 'EUR', taxInfo: 'NHR regime for tax benefits' };
   }
   
   return { code: 'US', currency: 'USD', taxInfo: '1031 Exchange available, Depreciation deductions' };
 }
 
-const languageNames: Record<string, string> = {
-  en: 'English',
-  pt: 'Portuguese (Brazilian)',
-  fr: 'French',
-  zh: 'Simplified Chinese',
-  it: 'Italian',
-  es: 'Spanish',
-  ar: 'Arabic',
-};
+// ============= RENTCAST API FUNCTIONS =============
+async function fetchRentEstimate(address: string, apiKey: string): Promise<RentcastRentEstimate | null> {
+  try {
+    const encodedAddress = encodeURIComponent(address);
+    const response = await fetch(
+      `${RENTCAST_BASE_URL}/avm/rent/long-term?address=${encodedAddress}`,
+      {
+        headers: { 'X-Api-Key': apiKey },
+      }
+    );
+    
+    if (!response.ok) {
+      console.error('Rentcast rent estimate error:', response.status, await response.text());
+      return null;
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Rentcast rent estimate fetch error:', error);
+    return null;
+  }
+}
+
+async function fetchValueEstimate(address: string, apiKey: string): Promise<RentcastValueEstimate | null> {
+  try {
+    const encodedAddress = encodeURIComponent(address);
+    const response = await fetch(
+      `${RENTCAST_BASE_URL}/avm/value?address=${encodedAddress}`,
+      {
+        headers: { 'X-Api-Key': apiKey },
+      }
+    );
+    
+    if (!response.ok) {
+      console.error('Rentcast value estimate error:', response.status, await response.text());
+      return null;
+    }
+    
+    return await response.json();
+  } catch (error) {
+    console.error('Rentcast value estimate fetch error:', error);
+    return null;
+  }
+}
+
+async function fetchPropertyDetails(address: string, apiKey: string): Promise<RentcastPropertyDetails | null> {
+  try {
+    const encodedAddress = encodeURIComponent(address);
+    const response = await fetch(
+      `${RENTCAST_BASE_URL}/properties?address=${encodedAddress}`,
+      {
+        headers: { 'X-Api-Key': apiKey },
+      }
+    );
+    
+    if (!response.ok) {
+      console.error('Rentcast property details error:', response.status, await response.text());
+      return null;
+    }
+    
+    const data = await response.json();
+    // Rentcast returns an array, get first result
+    return Array.isArray(data) ? data[0] : data;
+  } catch (error) {
+    console.error('Rentcast property details fetch error:', error);
+    return null;
+  }
+}
+
+// Generate AI-like analysis based on metrics
+function generateAnalysis(
+  metrics: CalculatedMetrics, 
+  rawData: RawExtractedData,
+  jurisdiction: { code: string; currency: string; taxInfo: string },
+  language: string
+): any {
+  let verdict: 'BUY' | 'NEGOTIATE' | 'AVOID' = 'NEGOTIATE';
+  let confidence = 75;
+  
+  const criticalWarnings = metrics.validation_warnings.filter(w => w.severity === 'critical');
+  
+  if (criticalWarnings.length > 0) {
+    verdict = 'AVOID';
+    confidence = 40;
+  } else if (metrics.cap_rate >= 8 && metrics.cash_on_cash_return >= 10 && metrics.one_percent_rule >= 1) {
+    verdict = 'BUY';
+    confidence = 85;
+  } else if (metrics.cap_rate >= 6 && metrics.cash_on_cash_return >= 6) {
+    verdict = 'NEGOTIATE';
+    confidence = 70;
+  } else if (metrics.cap_rate < 4 || metrics.cash_on_cash_return < 0) {
+    verdict = 'AVOID';
+    confidence = 60;
+  }
+
+  const strengths: string[] = [];
+  const redFlags: string[] = [];
+  
+  if (metrics.cap_rate >= 7) strengths.push(`Strong Cap Rate: ${metrics.cap_rate}%`);
+  if (metrics.one_percent_rule >= 1) strengths.push(`Passes 1% Rule: ${metrics.one_percent_rule}%`);
+  if (metrics.cash_on_cash_return >= 8) strengths.push(`Excellent Cash-on-Cash: ${metrics.cash_on_cash_return}%`);
+  if (metrics.debt_service_coverage >= 1.25) strengths.push(`Good DSCR: ${metrics.debt_service_coverage}`);
+  
+  if (metrics.cap_rate < 5) redFlags.push(`Low Cap Rate: ${metrics.cap_rate}%`);
+  if (metrics.one_percent_rule < 0.8) redFlags.push(`Fails 1% Rule: ${metrics.one_percent_rule}%`);
+  if (metrics.cash_on_cash_return < 5) redFlags.push(`Low Cash-on-Cash: ${metrics.cash_on_cash_return}%`);
+  if (metrics.expense_warning) redFlags.push(metrics.expense_warning);
+  
+  criticalWarnings.forEach(w => redFlags.push(w.message));
+
+  const reasoning = verdict === 'BUY' 
+    ? `This property shows strong investment metrics with a ${metrics.cap_rate}% cap rate and ${metrics.cash_on_cash_return}% cash-on-cash return.`
+    : verdict === 'AVOID'
+    ? `This property has significant red flags that make it a risky investment. ${redFlags[0] || 'Review the metrics carefully.'}`
+    : `This property has potential but requires negotiation. Target price reduction of 5-10% to improve returns.`;
+
+  const negotiationScript = `Based on the analysis, the current asking price yields a ${metrics.cap_rate}% cap rate. 
+To achieve a more attractive 8% cap rate, consider offering around $${Math.round(rawData.purchase_price * 0.90).toLocaleString()}. 
+Key negotiation points: market comparables, days on market, and any identified issues.`;
+
+  return {
+    verdict,
+    confidence,
+    reasoning,
+    tax_strategy: jurisdiction.taxInfo,
+    negotiation_script: negotiationScript,
+    red_flags: redFlags,
+    strengths,
+    forced_appreciation: 'Consider cosmetic updates, rent optimization, or expense reduction strategies.',
+    exit_strategies: ['Buy and Hold', 'BRRRR Strategy', 'Fix and Flip', '1031 Exchange'],
+  };
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -392,30 +477,62 @@ serve(async (req) => {
   try {
     const { url, address, purchasePrice, monthlyRent, language, mode, userId, teamId, forceRefresh } = await req.json();
     
-    const inputSource = url || address;
-    console.log('Deep Scan analysis:', { inputSource, mode, language, forceRefresh, userPrice: purchasePrice });
+    // For Rentcast, we need an address - extract from URL or use provided address
+    let propertyAddress = address;
+    
+    // If URL provided, we need to inform user that Rentcast requires an address
+    if (url && !address) {
+      console.log('URL provided but Rentcast requires address. Attempting to extract...');
+      // For now, return an error asking for the address
+      // In future, could use a web scraper to extract address from URL
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'address_required',
+        message: 'Rentcast API requires a property address. Please use Quick Analysis mode and enter the property address.',
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    if (!propertyAddress) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'address_required',
+        message: 'Please provide a property address for analysis.',
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    console.log('Rentcast analysis:', { propertyAddress, mode, language, userPrice: purchasePrice });
+
+    const RENTCAST_API_KEY = Deno.env.get('RENTCAST_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
-    if (!GEMINI_API_KEY && !LOVABLE_API_KEY) {
-      throw new Error('No AI API key configured (GEMINI_API_KEY or LOVABLE_API_KEY required)');
+    if (!RENTCAST_API_KEY) {
+      return new Response(JSON.stringify({ 
+        error: 'RENTCAST_API_KEY not configured. Please add your Rentcast API key.' 
+      }), {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
     
-    // ============= STEP 1: CHECK CACHE =============
-    const inputHash = generateInputHash(inputSource, purchasePrice, monthlyRent);
+    // ============= CHECK CACHE =============
+    const inputHash = generateInputHash(propertyAddress, purchasePrice, monthlyRent);
     
-    if (!forceRefresh && url) {
-      console.log('Checking cache for URL:', url);
+    if (!forceRefresh) {
+      console.log('Checking cache for address:', propertyAddress);
       
       const { data: cachedAnalysis, error: cacheError } = await supabase
         .from('property_analyses')
         .select('*')
-        .eq('property_url', url)
+        .eq('input_hash', inputHash)
         .gt('expires_at', new Date().toISOString())
         .maybeSingle();
       
@@ -431,811 +548,141 @@ serve(async (req) => {
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      console.log('Cache MISS - proceeding with fresh analysis');
+      console.log('Cache MISS - proceeding with Rentcast API');
     }
 
-    const jurisdiction = detectJurisdiction(inputSource);
-    const targetLang = languageNames[language] || 'English';
+    const jurisdiction = detectJurisdiction(propertyAddress);
 
-// ============= STEP 2: AI EXTRACTS RAW DATA ONLY =============
-    // CRITICAL: Extract unit identifier from URL for precision matching
-    const urlUnitMatch = url?.match(/(?:apt|unit|#)[-\s]*([a-zA-Z0-9]+)/i);
-    const targetUnit = urlUnitMatch ? urlUnitMatch[1].toUpperCase() : null;
-    console.log('Target unit from URL:', targetUnit, '| Full URL:', url);
-
-    const systemPrompt = `You are a MISSION-CRITICAL Real Estate Deep Scan Engine.
-Your outputs are used for REAL MONEY investment decisions.
-ABSOLUTE ACCURACY is mandatory.
-Wrong data is WORSE than missing data.
-FAILURE is preferable to HALLUCINATION.
-
-====================================================
-GLOBAL EXECUTION MODE (MANDATORY)
-====================================================
-You are interpreting a FULLY RENDERED real estate listing page as a human would see it.
-The page has been:
-- Fully accessed in a real browser environment
-- Completely rendered (React/Vue/Angular ready)
-- Scrolled from top to bottom
-- Visually analyzed to identify layout hierarchy
-
-====================================================
-PRIMARY LISTING CONTAINER (CRITICAL)
-====================================================
-Before extracting ANY data, you MUST identify the PRIMARY LISTING CONTAINER.
-The PRIMARY LISTING CONTAINER is defined as:
-- The section that visually contains:
-  - Property address
-  - Main price (visually dominant typography)
-  - Beds / Baths / Sqft
-- Usually located ABOVE THE FOLD
-- Visually DOMINANT
-- CENTRAL to the page
-
-You are STRICTLY FORBIDDEN from extracting data outside this container by default.
-
-====================================================
-PURCHASE PRICE — ZERO TOLERANCE
-====================================================
-Extract ONLY the official listing price.
-Valid price requirements:
-- Visually dominant typography
-- Directly associated with the property address
-- Explicitly labeled as "Price", "Listed for", "Asking Price", or equivalent
-
-You MUST IGNORE:
-- Zestimate / Redfin Estimate / Any AI estimates
-- "Suggested offer" prices
-- Comparable/Similar home prices
-- Market averages or medians
-- Price history entries
-
-If multiple prices exist:
-- Choose ONLY the one in the PRIMARY LISTING CONTAINER
-- If ambiguity exists → return price as NULL and set "price_ambiguous": true
-
-You are NEVER allowed to guess a purchase price.
-
-${targetUnit ? `====================================================
-UNIT SPECIFICITY FILTER
-====================================================
-TARGET UNIT: ${targetUnit}
-YOU MUST ONLY EXTRACT DATA FOR THIS SPECIFIC UNIT.
-- The List Price MUST be for unit ${targetUnit} ONLY
-- If you see multiple prices, use ONLY the one in the main listing header for ${targetUnit}
-- IGNORE all other units on the page` : ''}
-
-====================================================
-MONTHLY RENT EXTRACTION
-====================================================
-Rent extraction priority:
-1. Explicit "Rent Zestimate" or platform-provided rent
-2. Explicit rental price in description ("For Rent: $X/month")
-3. Market rent estimation ONLY if no rent data exists
-
-Every rent value MUST be labeled with:
-- source: "extracted" | "estimated" | "inferred"
-- extraction_method: how the value was obtained
-- confidence_score: 0-1
-
-If estimated, provide:
-- Estimation method used
-- Confidence score
-
-====================================================
-OPERATING EXPENSES — STRICT EXTRACTION
-====================================================
-Extract ONLY expenses EXPLICITLY stated in the listing:
-- Property taxes (look for "Property Tax", "Real Estate Tax", "Annual Tax")
-- HOA fees (look for "HOA Fee", "Association Fee", "Condo Fee", "Common Charges")
-- Insurance (look for "Homeowners Insurance", "Insurance Estimate")
-- Utilities (if listed)
-- Special assessments
-
-If an expense is NOT explicitly stated:
-- Apply deterministic estimation rules
-- Mark the value as "is_estimated": true
-- NEVER mix extracted and estimated values silently
-
-Each expense field MUST include:
-{
-  "value": number,
-  "is_estimated": boolean,
-  "source": "extracted" | "estimated",
-  "visual_location": "string describing where it was found or 'N/A'"
-}
-
-====================================================
-OWNERSHIP & LEGAL VALIDATION
-====================================================
-Detect and flag:
-- "Leasehold" / "Land Lease" / "Ground Lease"
-- "Co-op" / "Cooperative"
-- "Shared ownership"
-- "Rental restrictions" / "No rentals allowed"
-- "HOA limitations"
-
-Any detected legal complexity MUST trigger a critical warning.
-Default to "fee_simple" ONLY if no ownership indicators found.
-
-====================================================
-ANTI-HALLUCINATION GUARANTEE
-====================================================
-You are STRICTLY FORBIDDEN from:
-- INVENTING numbers that are not on the page
-- PULLING values from "similar homes" or "nearby properties"
-- USING averages without explicit labeling
-- ASSUMING missing data
-
-If data is missing → return NULL
-If confidence < 0.85 → return NULL + warning
-If multiple conflicting values → return NULL + "manual_review_required": true
-
-====================================================
-DATA EXTRACTION PRIORITY ORDER
-====================================================
-PRIORITY A - HIDDEN METADATA (CHECK FIRST):
-1. Search HTML for <script type="application/ld+json"> tags
-2. Extract from JSON-LD fields:
-   - offers.price → listing_price
-   - address.streetAddress → property address
-   - numberOfBedrooms, numberOfBathrooms, floorSize
-3. JSON-LD is MORE RELIABLE than visible text
-4. Set "extraction_method": "json_ld" when used
-
-PRIORITY B - SEMANTIC SELECTORS:
-1. Find <h1> element → Usually the address
-2. Price with data-testid="price" attribute
-3. Price in "Hero Section" (top, visually prominent)
-4. Set "extraction_method": "semantic_selector"
-
-PRIORITY C - VISUAL SCAN:
-1. Largest price on page within PRIMARY LISTING CONTAINER
-2. Set "extraction_method": "visual_scan"
-
-====================================================
-CONTENT ISOLATION (MANDATORY)
-====================================================
-STRICTLY IGNORE these sections:
-- "Nearby Homes" / "Similar Homes" / "Similar Listings"
-- "Other Units For Sale" / "Building Units" / "Units in Building"
-- "Recently Sold" / "Price History of Neighbors"
-- "Sponsored" / "Advertisements"
-- "Recommended For You"
-- Footer sections with multiple properties
-- Sidebar recommendations
-
-FOCUS ONLY ON: The PRIMARY LISTING CONTAINER
-
-====================================================
-OUTPUT FORMAT (MANDATORY)
-====================================================
-Return a JSON object with this EXACT structure. Every numerical field MUST include metadata:
-
-{
-  "property_id": "UUID",
-  "extracted_unit": "string (the unit number found, e.g., '7I') or null",
-  "extraction_metadata": {
-    "json_ld_found": boolean,
-    "primary_container_identified": boolean,
-    "price_source": "json_ld" | "semantic_selector" | "visual_scan" | "user_input",
-    "taxes_source": "extracted" | "estimated",
-    "rent_source": "rent_zestimate" | "page_text" | "estimated",
-    "overall_confidence_score": number (0-100),
-    "extraction_warnings": ["array of any issues encountered"]
-  },
-  "raw_data": {
-    "purchase_price": {
-      "value": number or null,
-      "currency": "${jurisdiction.currency}",
-      "source": "extracted" | "user_input",
-      "extraction_method": "json_ld" | "semantic_selector" | "visual_scan",
-      "visual_location": "string describing where found (e.g., 'Main header above fold')",
-      "confidence_score": number (0-1),
-      "is_estimated": false
-    },
-    "listing_price": {
-      "value": number or null,
-      "currency": "${jurisdiction.currency}",
-      "source": "extracted",
-      "extraction_method": "json_ld" | "semantic_selector" | "visual_scan",
-      "visual_location": "string",
-      "confidence_score": number (0-1),
-      "is_estimated": false
-    },
-    "estimated_monthly_rent": {
-      "value": number,
-      "currency": "${jurisdiction.currency}",
-      "source": "extracted" | "estimated" | "inferred",
-      "extraction_method": "rent_zestimate" | "description_text" | "sqft_calculation" | "one_percent_rule",
-      "visual_location": "string or 'N/A'",
-      "confidence_score": number (0-1),
-      "is_estimated": boolean
-    },
-    "rent_zestimate": number or null,
-    "hoa_fees": {
-      "value": number or null,
-      "currency": "${jurisdiction.currency}",
-      "source": "extracted" | "estimated",
-      "visual_location": "string or 'N/A'",
-      "confidence_score": number (0-1),
-      "is_estimated": boolean,
-      "frequency": "monthly" | "annual"
-    },
-    "property_taxes_annual": {
-      "value": number or null,
-      "currency": "${jurisdiction.currency}",
-      "source": "extracted" | "estimated",
-      "visual_location": "string or 'N/A'",
-      "confidence_score": number (0-1),
-      "is_estimated": boolean
-    },
-    "insurance_annual": {
-      "value": number or null,
-      "currency": "${jurisdiction.currency}",
-      "source": "extracted" | "estimated",
-      "visual_location": "string or 'N/A'",
-      "confidence_score": number (0-1),
-      "is_estimated": boolean
-    },
-    "ownership_type": "fee_simple" | "leasehold" | "land_lease" | "coop",
-    "ownership_detection_source": "string (where ownership type was identified)",
-    "property_type": "apartment" | "house" | "condo" | "townhouse" | "commercial" | "land",
-    "location_quality": "prime" | "good" | "average" | "developing",
-    "beds": number or null,
-    "baths": number or null,
-    "sqft": number or null,
-    "year_built": number or null,
-    "description_hints": ["array of relevant keywords found"],
-    "price_ambiguous": boolean (true if multiple conflicting prices found),
-    "price_extraction_failed": boolean (true if price could not be extracted),
-    "manual_review_required": boolean (true if data reliability is questionable),
-    "visible_prices_found": [array of ALL dollar amounts seen on page - for debugging]
-  },
-  "ai_analysis": {
-    "verdict": "BUY" | "NEGOTIATE" | "AVOID",
-    "confidence": number (0-100),
-    "reasoning": "detailed explanation in ${targetLang}",
-    "tax_strategy": "localized strategy in ${targetLang}",
-    "negotiation_script": "persuasive script in ${targetLang}",
-    "red_flags": ["array in ${targetLang}"],
-    "strengths": ["array in ${targetLang}"],
-    "forced_appreciation": "string in ${targetLang}",
-    "exit_strategies": ["array in ${targetLang}"]
-  },
-  "rehab_suggestions": [
-    {
-      "item": "string",
-      "estimated_cost": number,
-      "value_add": number,
-      "priority": "high" | "medium" | "low"
-    }
-  ],
-  "market_comparables": [
-    {
-      "address": "string",
-      "sale_price": number,
-      "sale_date": "string",
-      "differential": "string in ${targetLang}",
-      "beds": number,
-      "baths": number,
-      "sqft": number
-    }
-  ]
-}
-
-====================================================
-RENT ESTIMATION RULES (if not found on page)
-====================================================
-If no explicit rent found, estimate using this priority:
-1. FIRST: "Rent Zestimate" or platform estimate → mark source: "rent_zestimate"
-2. SECOND: sqft * $2.50 → mark source: "estimated", method: "sqft_calculation"
-3. THIRD: listing_price * 0.01 → mark source: "estimated", method: "one_percent_rule"
-4. USE THE LOWER of methods 2 and 3
-5. Set is_estimated: true for any estimated rent
-6. NEVER return rent as $0 - always provide an estimate if not found
-
-====================================================
-EXPENSE ESTIMATION RULES (if not found on page)
-====================================================
-- Property taxes: 1.5% of purchase price annually → mark is_estimated: true
-- Insurance: 0.5% of purchase price annually → mark is_estimated: true
-- HOA: $0 if not stated (do NOT estimate) → value: null
-
-====================================================
-CO-OP PRICE VALIDATION
-====================================================
-Co-ops often sell for $100k-$200k despite high Zestimates.
-If ownership_type = "coop" AND extracted price > $350,000:
-- RE-SCAN for a lower price in the main header
-- The lower price is ALWAYS correct for co-ops
-- Flag for manual review if uncertain
-
-====================================================
-MARKET COMPARABLES RULES
-====================================================
-1. Return EXACTLY 3 comparables (or fewer if not available)
-2. Sort by most recently sold first
-3. Limit search to 0.5 miles, similar sqft (+/- 20%)
-4. If Leasehold → use ONLY Leasehold comparables
-5. NEVER use the target listing as a comparable
-
-====================================================
-FINAL OBJECTIVE
-====================================================
-Your output must allow a professional investor to:
-- FULLY TRUST the numbers
-- CLEARLY SEE where each number came from
-- DISTINGUISH factual data from estimates
-- Make capital decisions without hidden assumptions
-
-You are optimizing for:
-TRUST > PRECISION > CAPITAL PRESERVATION
-Not speed. Not completion. Not optimism.
-
-JURISDICTION: ${jurisdiction.code}
-CURRENCY: ${jurisdiction.currency}
-TAX FRAMEWORK: ${jurisdiction.taxInfo}
-LANGUAGE FOR AI ANALYSIS: ${targetLang}`;
-
-    const userPrompt = mode === 'deep_scan' && url ? 
-      `====================================================
-MISSION: EXTRACT DATA FROM THIS PROPERTY LISTING
-====================================================
-
-URL: ${url}
-${targetUnit ? `\n=== CRITICAL: UNIT FILTER ===\nTARGET UNIT: ${targetUnit}\nONLY extract data for unit ${targetUnit}. IGNORE all other units.\n` : ''}
-${purchasePrice ? `\n=== USER OVERRIDE ===\nUser Provided Price: ${purchasePrice}\nUSE THIS EXACT VALUE for purchase_price. Set source: "user_input"` : '\n=== PRICE EXTRACTION ===\nEXTRACT the actual listing price. Do NOT estimate market value.\nIf extraction fails, set price_extraction_failed: true'}
-${monthlyRent ? `User Provided Rent: ${monthlyRent}` : '\n=== RENT EXTRACTION ===\nIf rent not found, estimate using the rules. NEVER return $0.'}
-
-====================================================
-MANDATORY EXECUTION WORKFLOW
-====================================================
-
-STEP 1 — IDENTIFY PRIMARY LISTING CONTAINER:
-- Locate the main content area with address + price + beds/baths
-- This is your ONLY extraction zone
-- Report what you identified in extraction_metadata
-
-STEP 2 — CHECK JSON-LD METADATA:
-- Search for <script type="application/ld+json">
-- Extract: offers.price, address.streetAddress, numberOfBedrooms, floorSize
-- If found, these values take PRIORITY
-- Set extraction_method: "json_ld"
-
-STEP 3 — PRICE EXTRACTION (ZERO TOLERANCE):
-${purchasePrice ? `- USE USER OVERRIDE: ${purchasePrice}` : `- Find listing price in JSON-LD first
-- If not in JSON-LD, find in main header (visually dominant)
-- REJECT: Zestimate, estimates, "similar homes" prices, price history
-- If multiple prices found and ambiguous → set price_ambiguous: true
-- If price = $0 or null → set price_extraction_failed: true
-- NEVER guess the price`}
-
-STEP 4 — EXPENSE EXTRACTION:
-- Search for "Monthly Payment Calculator", "Costs", "Fees" sections
-- Extract ACTUAL values for taxes, HOA, insurance
-- For each value, record:
-  - source: "extracted" or "estimated"
-  - visual_location: where you found it
-  - confidence_score: your confidence (0-1)
-- NEVER use generic rates if real values are visible
-
-STEP 5 — OWNERSHIP TYPE DETECTION:
-- Look for: "Leasehold", "Co-op", "Cooperative", "Land Lease"
-- Record where you found ownership information
-- Default to "fee_simple" ONLY if nothing found
-
-STEP 6 — CONTENT ISOLATION:
-- COMPLETELY IGNORE: "Nearby Homes", "Similar Listings", "Other Units", "Sponsored", "Building Units"
-- Extract ONLY from PRIMARY LISTING CONTAINER
-
-STEP 7 — VALIDATION:
-- Verify extracted_unit matches target: "${targetUnit || 'main listing'}"
-- If price seems wrong for property type (e.g., too high for co-op), flag for review
-- If confidence < 0.85 on any critical field → set manual_review_required: true
-
-====================================================
-ANTI-HALLUCINATION CHECKLIST
-====================================================
-Before returning, verify:
-[ ] Price came from PRIMARY LISTING CONTAINER only
-[ ] No data from "Similar Homes" or "Nearby" sections
-[ ] All estimated values clearly marked is_estimated: true
-[ ] All sources documented in extraction_method fields
-[ ] Confidence scores are realistic (not all 1.0)
-[ ] visible_prices_found contains ALL prices seen (for audit)
-
-Return valid JSON only.` :
-      `====================================================
-QUICK ANALYSIS MODE
-====================================================
-
-Property: ${address}
-Purchase Price: ${purchasePrice}
-Monthly Rent: ${monthlyRent || 'Estimate at 1% of purchase price - NEVER return $0'}
-
-WORKFLOW:
-1. Use provided purchase price directly → source: "user_input"
-2. Use provided rent or estimate → mark is_estimated if estimated
-3. Mark ALL estimated values with is_estimated: true
-4. Provide AI analysis based on the numbers
-
-Return valid JSON only.`;
-
-    // ============= AI API CALL WITH FALLBACK =============
-    // Priority: 1) Gemini API, 2) Lovable AI Gateway (fallback)
+    // ============= FETCH DATA FROM RENTCAST =============
+    console.log('Fetching data from Rentcast API...');
     
-    let aiContent = '';
-    let usedProvider = 'gemini';
-    
-    // Try Gemini first if available
-    if (GEMINI_API_KEY) {
-      console.log('Calling Gemini API for data extraction (temperature=0 for consistency)...');
-      
-      const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
-            }
-          ],
-          generationConfig: {
-            temperature: 0,
-            responseMimeType: 'application/json',
-          },
-        }),
-      });
+    // Fetch all data in parallel
+    const [rentEstimate, valueEstimate, propertyDetails] = await Promise.all([
+      fetchRentEstimate(propertyAddress, RENTCAST_API_KEY),
+      fetchValueEstimate(propertyAddress, RENTCAST_API_KEY),
+      fetchPropertyDetails(propertyAddress, RENTCAST_API_KEY),
+    ]);
 
-      if (geminiResponse.ok) {
-        const geminiData = await geminiResponse.json();
-        aiContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
-        console.log('Gemini response received successfully');
-      } else {
-        const errorText = await geminiResponse.text();
-        console.warn('Gemini API failed, falling back to Lovable AI:', geminiResponse.status, errorText);
-        usedProvider = 'lovable_fallback';
-      }
-    }
-    
-    // Fallback to Lovable AI Gateway if Gemini failed or not configured
-    if (!aiContent && LOVABLE_API_KEY) {
-      console.log('Using Lovable AI Gateway (fallback)...');
-      usedProvider = 'lovable';
-      
-      const lovableResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model: 'google/gemini-2.5-flash',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userPrompt }
-          ],
-          temperature: 0,
-          response_format: { type: 'json_object' },
-        }),
-      });
-
-      if (!lovableResponse.ok) {
-        const errorText = await lovableResponse.text();
-        console.error('Lovable AI Gateway error:', lovableResponse.status, errorText);
-        
-        if (lovableResponse.status === 429) {
-          return new Response(JSON.stringify({ 
-            error: 'Rate limit exceeded on all AI providers. Please try again in a moment.' 
-          }), {
-            status: 429,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-        
-        if (lovableResponse.status === 402) {
-          return new Response(JSON.stringify({ 
-            error: 'AI credits exhausted. Please add credits to continue.' 
-          }), {
-            status: 402,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          });
-        }
-        
-        throw new Error(`AI Gateway error: ${lovableResponse.status}`);
-      }
-      
-      const lovableData = await lovableResponse.json();
-      aiContent = lovableData.choices?.[0]?.message?.content || '';
-      console.log('Lovable AI response received successfully');
-    }
-    
-    if (!aiContent) {
-      throw new Error('Failed to get response from any AI provider');
-    }
-
-    console.log(`AI response received from ${usedProvider}, parsing...`);
-
-    let extractedData;
-    try {
-      extractedData = JSON.parse(aiContent);
-    } catch (parseError) {
-      const jsonMatch = aiContent.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        extractedData = JSON.parse(jsonMatch[0]);
-      } else {
-        console.error('Failed to parse AI response:', aiContent);
-        throw new Error('Failed to parse AI response as JSON');
-      }
-    }
-
-    // ============= STEP 3: PREPARE RAW DATA WITH VALIDATION =============
-    // CRITICAL: Unit verification
-    const extractedUnit = extractedData.extracted_unit?.toUpperCase();
-    if (targetUnit && extractedUnit && extractedUnit !== targetUnit) {
-      console.warn(`UNIT MISMATCH! Requested: ${targetUnit}, Extracted: ${extractedUnit}`);
-    }
-
-    // ============= EXTRACTION METADATA LOGGING =============
-    const extractionMetadata = extractedData.extraction_metadata || {};
-    console.log('Extraction metadata:', {
-      json_ld_found: extractionMetadata.json_ld_found || false,
-      primary_container_identified: extractionMetadata.primary_container_identified || false,
-      price_source: extractionMetadata.price_source || 'unknown',
-      taxes_source: extractionMetadata.taxes_source || 'unknown',
-      rent_source: extractionMetadata.rent_source || 'unknown',
-      overall_confidence_score: extractionMetadata.overall_confidence_score || 0,
-      extraction_warnings: extractionMetadata.extraction_warnings || [],
+    console.log('Rentcast responses:', {
+      rentEstimate: rentEstimate ? 'received' : 'failed',
+      valueEstimate: valueEstimate ? 'received' : 'failed',
+      propertyDetails: propertyDetails ? 'received' : 'failed',
     });
 
-    // ============= PRICE EXTRACTION VALIDATION (ZERO TOLERANCE) =============
-    // Handle new structured format where price might be an object
-    const rawPriceData = extractedData.raw_data?.purchase_price;
-    const rawListingPriceData = extractedData.raw_data?.listing_price;
-    
-    // Extract price value whether it's a number or an object with value property
-    const aiPurchasePrice = typeof rawPriceData === 'object' ? rawPriceData?.value : rawPriceData;
-    const aiListingPriceValue = typeof rawListingPriceData === 'object' ? rawListingPriceData?.value : rawListingPriceData;
-    
-    const priceAmbiguous = extractedData.raw_data?.price_ambiguous || false;
-    const priceExtractionFailed = extractedData.raw_data?.price_extraction_failed || false;
-    const manualReviewRequired = extractedData.raw_data?.manual_review_required || false;
-    const visiblePricesFound = extractedData.raw_data?.visible_prices_found || [];
+    // ============= DETERMINE FINAL VALUES =============
+    // Priority: User input > Rentcast AVM > Fallback estimate
+    let finalPrice = purchasePrice || valueEstimate?.price || 0;
+    let priceSource: 'user_input' | 'rentcast_avm' | 'estimated' = 
+      purchasePrice ? 'user_input' : (valueEstimate?.price ? 'rentcast_avm' : 'estimated');
 
-    // Log price extraction details for transparency
-    console.log('Price extraction details:', {
-      rawPriceData,
-      rawListingPriceData,
-      aiPurchasePrice,
-      aiListingPriceValue,
-      priceAmbiguous,
-      priceExtractionFailed,
-      visiblePricesFound,
-    });
+    let finalRent = monthlyRent || rentEstimate?.rent || 0;
+    let isRentEstimated = !monthlyRent && !rentEstimate?.rent;
+    let rentSource = monthlyRent ? 'user_input' : (rentEstimate?.rent ? 'rentcast' : 'estimated');
 
-    if (priceAmbiguous && !purchasePrice) {
-      console.warn('PRICE AMBIGUOUS - Multiple conflicting prices found');
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'price_ambiguous',
-        message: 'Multiple conflicting prices found on the page. Please enter the correct price manually.',
-        visible_prices: visiblePricesFound,
-        manual_review_required: true,
-      }), {
-        status: 422,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    if (priceExtractionFailed && !purchasePrice) {
-      console.error('PRICE EXTRACTION FAILED - Manual review required');
-      console.log('Visible prices found on page:', visiblePricesFound);
-      
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'price_extraction_failed',
-        message: 'Could not reliably extract the listing price. Please enter the price manually.',
-        visible_prices: visiblePricesFound,
-        manual_review_required: true,
-      }), {
-        status: 422,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
-    // PRIORITY: 1) User input, 2) AI listing_price (NEVER estimated market value)
-    const aiListingPrice = aiListingPriceValue || 0;
-    const aiFallbackPrice = aiPurchasePrice || 0;
-    
-    // CRITICAL: Use listing price, never AI estimates
-    let finalPrice = purchasePrice || aiListingPrice || aiFallbackPrice;
-    let priceSource: 'user_input' | 'listing_price' | 'ai_estimated' = purchasePrice ? 'user_input' : (aiListingPrice ? 'listing_price' : 'ai_estimated');
-    
-    // Extract additional price metadata if available
-    const priceExtractionMethod = typeof rawListingPriceData === 'object' 
-      ? rawListingPriceData?.extraction_method 
-      : extractionMetadata.price_source || 'unknown';
-    const priceConfidenceFromAI = typeof rawListingPriceData === 'object'
-      ? rawListingPriceData?.confidence_score
-      : null;
-    const priceVisualLocation = typeof rawListingPriceData === 'object'
-      ? rawListingPriceData?.visual_location
-      : 'unknown';
-
-    // Additional validation: if price is 0 after all attempts, fail
-    if (!finalPrice || finalPrice <= 0) {
-      console.error('FINAL PRICE IS ZERO OR INVALID');
-      return new Response(JSON.stringify({
-        success: false,
-        error: 'invalid_price',
-        message: 'Extracted price is $0 or invalid. Please enter the purchase price manually.',
-        visible_prices: visiblePricesFound,
-        manual_review_required: true,
-      }), {
-        status: 422,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-    
-    console.log('Price determination:', { 
-      userPrice: purchasePrice, 
-      aiListingPrice, 
-      aiFallbackPrice, 
-      finalPrice,
-      priceSource,
-      extractionMethod: priceExtractionMethod,
-      confidence: priceConfidenceFromAI,
-      visualLocation: priceVisualLocation,
-    });
-
-    // ============= RENT FALLBACK LOGIC (NEVER $0) =============
-    // Handle new structured format where rent might be an object
-    const rawRentData = extractedData.raw_data?.estimated_monthly_rent;
-    let estimatedRent = monthlyRent || (typeof rawRentData === 'object' ? rawRentData?.value : rawRentData) || 0;
-    let isRentEstimated = typeof rawRentData === 'object' ? rawRentData?.is_estimated : (extractedData.raw_data?.is_rent_estimated || false);
-    const rentExtractionMethod = typeof rawRentData === 'object' ? rawRentData?.extraction_method : 'unknown';
-    
-    // Handle sqft whether it's a number or object
-    const rawSqft = extractedData.raw_data?.sqft;
-    const sqft = typeof rawSqft === 'object' ? rawSqft?.value : (rawSqft || 0);
-    
-    const rentSource = typeof rawRentData === 'object' 
-      ? rawRentData?.source 
-      : (extractedData.raw_data?.rent_source || (monthlyRent ? 'user_input' : 'unknown'));
-    
-    // Try rent zestimate first
-    const rentZestimate = extractedData.raw_data?.rent_zestimate;
-    if (!estimatedRent || estimatedRent === 0) {
-      if (rentZestimate && rentZestimate > 0) {
-        estimatedRent = rentZestimate;
-        isRentEstimated = true;
-        console.log('Using Rent Zestimate:', rentZestimate);
-      } else {
-        // FORMULA: Use the LOWER of 1% of price or $2.50/sqft
-        const onePercentRent = Math.round(finalPrice * 0.01);
-        const sqftRent = sqft > 0 ? Math.round(sqft * 2.50) : Infinity;
-        
-        estimatedRent = Math.min(onePercentRent, sqftRent === Infinity ? onePercentRent : sqftRent);
-        isRentEstimated = true;
-        
-        console.log('Rent fallback calculation:', {
-          onePercentRent,
-          sqftRent: sqft > 0 ? sqftRent : 'N/A (no sqft)',
-          finalRent: estimatedRent,
-          method: sqft > 0 && sqftRent < onePercentRent ? 'sqft_method' : 'one_percent'
-        });
-      }
-    }
-
-    // FINAL CHECK: Rent should never be $0
-    if (!estimatedRent || estimatedRent <= 0) {
-      estimatedRent = Math.max(500, Math.round(finalPrice * 0.01)); // Absolute minimum
+    // Fallback rent calculation if Rentcast doesn't have data
+    if (!finalRent && finalPrice > 0) {
+      finalRent = Math.round(finalPrice * 0.01); // 1% rule fallback
       isRentEstimated = true;
-      console.log('Emergency rent fallback:', estimatedRent);
+      rentSource = 'one_percent_rule';
     }
 
-    // ============= EXPENSE SOURCE TRACKING (handle object format) =============
-    const rawHoaData = extractedData.raw_data?.hoa_fees;
-    const rawTaxesData = extractedData.raw_data?.property_taxes_annual;
-    const rawInsuranceData = extractedData.raw_data?.insurance_annual;
-    
-    const hoaValue = typeof rawHoaData === 'object' ? rawHoaData?.value : (rawHoaData || 0);
-    const taxesValue = typeof rawTaxesData === 'object' ? rawTaxesData?.value : rawTaxesData;
-    const insuranceValue = typeof rawInsuranceData === 'object' ? rawInsuranceData?.value : rawInsuranceData;
-    
-    const hoaSource = typeof rawHoaData === 'object' ? rawHoaData?.source : (extractedData.raw_data?.hoa_source || 'estimated');
-    const taxesSource = typeof rawTaxesData === 'object' ? rawTaxesData?.source : (extractedData.raw_data?.taxes_source || 'estimated');
-    const insuranceSource = typeof rawInsuranceData === 'object' ? rawInsuranceData?.source : (extractedData.raw_data?.insurance_source || 'estimated');
-    
-    const hoaIsEstimated = typeof rawHoaData === 'object' ? rawHoaData?.is_estimated : (hoaSource === 'estimated');
-    const taxesIsEstimated = typeof rawTaxesData === 'object' ? rawTaxesData?.is_estimated : (taxesSource === 'estimated');
-    const insuranceIsEstimated = typeof rawInsuranceData === 'object' ? rawInsuranceData?.is_estimated : (insuranceSource === 'estimated');
+    // If we still don't have a price, we can't proceed
+    if (!finalPrice || finalPrice <= 0) {
+      return new Response(JSON.stringify({
+        success: false,
+        error: 'no_price_data',
+        message: 'Could not determine property value. Please enter the purchase price manually.',
+        rentcast_data: {
+          rent_available: !!rentEstimate,
+          value_available: !!valueEstimate,
+          details_available: !!propertyDetails,
+        },
+      }), {
+        status: 422,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
-    console.log('Expense sources:', { 
-      hoaSource, hoaValue, hoaIsEstimated,
-      taxesSource, taxesValue, taxesIsEstimated,
-      insuranceSource, insuranceValue, insuranceIsEstimated,
-    });
+    // Get property taxes from Rentcast if available
+    const propertyTaxes = propertyDetails?.assessorTaxAmount || Math.round(finalPrice * 0.015);
 
-    // Handle beds/baths whether number or object
-    const rawBeds = extractedData.raw_data?.beds;
-    const rawBaths = extractedData.raw_data?.baths;
-    const rawYearBuilt = extractedData.raw_data?.year_built;
-    
+    // ============= BUILD RAW DATA =============
     const rawData: RawExtractedData = {
       purchase_price: finalPrice,
-      listing_price: aiListingPrice || finalPrice,
-      estimated_monthly_rent: estimatedRent,
-      hoa_fees: hoaValue || 0,
-      property_taxes_annual: taxesValue,
-      insurance_annual: insuranceValue,
-      property_type: extractedData.raw_data?.property_type,
-      location_quality: extractedData.raw_data?.location_quality,
-      beds: typeof rawBeds === 'object' ? rawBeds?.value : rawBeds,
-      baths: typeof rawBaths === 'object' ? rawBaths?.value : rawBaths,
-      sqft: sqft,
-      year_built: typeof rawYearBuilt === 'object' ? rawYearBuilt?.value : rawYearBuilt,
-      description_hints: extractedData.raw_data?.description_hints || [],
-      ownership_type: extractedData.raw_data?.ownership_type || 'fee_simple',
+      listing_price: valueEstimate?.price || finalPrice,
+      estimated_monthly_rent: finalRent,
+      property_taxes_annual: propertyTaxes,
+      insurance_annual: Math.round(finalPrice * 0.005),
+      property_type: propertyDetails?.propertyType || 'Single Family',
+      beds: propertyDetails?.bedrooms,
+      baths: propertyDetails?.bathrooms,
+      sqft: propertyDetails?.squareFootage,
+      year_built: propertyDetails?.yearBuilt,
+      description_hints: propertyDetails?.features || [],
+      ownership_type: 'fee_simple',
     };
 
-    console.log('Final raw data:', {
-      targetUnit,
-      extractedUnit,
-      finalPrice: rawData.purchase_price,
-      listingPrice: rawData.listing_price,
-      rent: rawData.estimated_monthly_rent,
-      isRentEstimated,
-      rentSource,
-      ownershipType: rawData.ownership_type,
-      manualReviewRequired,
-    });
-    
+    console.log('Raw data assembled:', rawData);
+
+    // ============= CALCULATE METRICS =============
+    const salesComparables = valueEstimate?.comparables || [];
     const calculatedMetrics = calculateDeterministicMetrics(
       rawData, 
       purchasePrice, 
-      aiFallbackPrice,
-      extractedData.market_comparables
+      valueEstimate?.price,
+      salesComparables
     );
 
-    console.log('Validation warnings:', calculatedMetrics.validation_warnings);
+    console.log('Calculated metrics:', {
+      cap_rate: calculatedMetrics.cap_rate,
+      cash_on_cash: calculatedMetrics.cash_on_cash_return,
+      one_percent_rule: calculatedMetrics.one_percent_rule,
+    });
 
-    // Calculate suggested offer price (more aggressive if validation warnings exist)
+    // ============= GENERATE ANALYSIS =============
+    const aiAnalysis = generateAnalysis(calculatedMetrics, rawData, jurisdiction, language || 'en');
+
+    // ============= BUILD MARKET COMPARABLES =============
+    const marketComparables = [
+      ...(salesComparables.slice(0, 3).map(comp => ({
+        address: comp.formattedAddress,
+        sale_price: comp.price,
+        sale_date: comp.lastSaleDate || 'Recent',
+        differential: comp.price > finalPrice ? `+${Math.round((comp.price - finalPrice) / finalPrice * 100)}%` : `${Math.round((comp.price - finalPrice) / finalPrice * 100)}%`,
+        beds: comp.bedrooms,
+        baths: comp.bathrooms,
+        sqft: comp.squareFootage,
+      }))),
+    ];
+
+    // ============= CALCULATE SUGGESTED OFFER =============
     let suggestedOfferPrice = rawData.purchase_price;
     if (calculatedMetrics.validation_warnings.some(w => w.severity === 'critical')) {
-      suggestedOfferPrice = Math.round(rawData.purchase_price * 0.85); // 15% off for critical issues
+      suggestedOfferPrice = Math.round(rawData.purchase_price * 0.85);
     } else if (calculatedMetrics.cap_rate < 5 || calculatedMetrics.cash_on_cash_return < 8) {
       suggestedOfferPrice = Math.round(rawData.purchase_price * 0.90);
     } else {
       suggestedOfferPrice = Math.round(rawData.purchase_price * 0.95);
     }
 
-    // Build final response with full transparency on data sources
+    // ============= BUILD FINAL RESPONSE =============
     const finalResult = {
-      property_id: extractedData.property_id || crypto.randomUUID(),
+      property_id: crypto.randomUUID(),
       metadata: {
-        source_url: url || address,
+        source: 'rentcast',
+        source_url: null,
         jurisdiction: jurisdiction.code,
         currency_code: jurisdiction.currency,
-        property_type: rawData.property_type || 'house',
-        location_quality: rawData.location_quality || 'average',
-        ownership_type: rawData.ownership_type || 'fee_simple',
-        ownership_detection_source: extractedData.raw_data?.ownership_detection_source || 'default',
-        target_unit: targetUnit,
-        extracted_unit: extractedUnit,
-        unit_match: !targetUnit || targetUnit === extractedUnit,
-        // NEW: Full extraction transparency
+        property_type: rawData.property_type,
+        location_quality: 'average',
+        ownership_type: 'fee_simple',
         extraction_transparency: {
-          json_ld_found: extractionMetadata.json_ld_found || false,
-          primary_container_identified: extractionMetadata.primary_container_identified || false,
-          overall_confidence_score: extractionMetadata.overall_confidence_score || 0,
-          extraction_warnings: extractionMetadata.extraction_warnings || [],
-          manual_review_required: manualReviewRequired,
-          visible_prices_on_page: visiblePricesFound,
+          data_provider: 'Rentcast',
+          rent_estimate_available: !!rentEstimate,
+          value_estimate_available: !!valueEstimate,
+          property_details_available: !!propertyDetails,
+          rent_range: rentEstimate ? { low: rentEstimate.rentRangeLow, high: rentEstimate.rentRangeHigh } : null,
+          value_range: valueEstimate ? { low: valueEstimate.priceRangeLow, high: valueEstimate.priceRangeHigh } : null,
         },
       },
       financials: {
@@ -1245,39 +692,23 @@ Return valid JSON only.`;
         is_rent_estimated: isRentEstimated,
         ...calculatedMetrics,
         suggested_offer_price: suggestedOfferPrice,
-        // NEW: Field-level transparency
         data_sources: {
           price: {
             value: rawData.purchase_price,
             source: priceSource,
-            extraction_method: priceExtractionMethod,
-            visual_location: priceVisualLocation,
-            confidence_score: priceConfidenceFromAI || (priceSource === 'user_input' ? 1.0 : 0.8),
-            is_estimated: false,
+            confidence_score: priceSource === 'rentcast_avm' ? 0.85 : (priceSource === 'user_input' ? 1.0 : 0.5),
+            is_estimated: priceSource === 'estimated',
           },
           rent: {
             value: rawData.estimated_monthly_rent,
             source: rentSource,
-            extraction_method: rentExtractionMethod,
-            confidence_score: isRentEstimated ? 0.7 : 0.9,
+            confidence_score: rentSource === 'rentcast' ? 0.85 : (rentSource === 'user_input' ? 1.0 : 0.6),
             is_estimated: isRentEstimated,
           },
-          hoa: {
-            value: hoaValue || 0,
-            source: hoaSource,
-            is_estimated: hoaIsEstimated,
-            frequency: 'monthly',
-          },
           property_taxes: {
-            value: taxesValue || 0,
-            source: taxesSource,
-            is_estimated: taxesIsEstimated,
-            frequency: 'annual',
-          },
-          insurance: {
-            value: insuranceValue || 0,
-            source: insuranceSource,
-            is_estimated: insuranceIsEstimated,
+            value: rawData.property_taxes_annual,
+            source: propertyDetails?.assessorTaxAmount ? 'rentcast' : 'estimated',
+            is_estimated: !propertyDetails?.assessorTaxAmount,
             frequency: 'annual',
           },
         },
@@ -1287,87 +718,56 @@ Return valid JSON only.`;
         baths: rawData.baths,
         sqft: rawData.sqft,
         year_built: rawData.year_built,
+        address: propertyAddress,
+        city: propertyDetails?.city,
+        state: propertyDetails?.state,
+        zip_code: propertyDetails?.zipCode,
       },
-      ai_analysis: extractedData.ai_analysis || {
-        verdict: 'NEGOTIATE',
-        confidence: 75,
-        reasoning: 'Analysis based on extracted data',
-        tax_strategy: jurisdiction.taxInfo,
-        negotiation_script: '',
-        red_flags: [],
-        strengths: [],
-        forced_appreciation: '',
-        exit_strategies: [],
-      },
-      rehab_suggestions: extractedData.rehab_suggestions || [],
-      market_comparables: extractedData.market_comparables || [],
+      ai_analysis: aiAnalysis,
+      rehab_suggestions: [
+        { item: 'Kitchen Updates', estimated_cost: 15000, value_add: 25000, priority: 'high' },
+        { item: 'Bathroom Refresh', estimated_cost: 8000, value_add: 12000, priority: 'medium' },
+        { item: 'Flooring', estimated_cost: 6000, value_add: 10000, priority: 'medium' },
+        { item: 'Paint & Curb Appeal', estimated_cost: 3000, value_add: 8000, priority: 'low' },
+      ],
+      market_comparables: marketComparables,
     };
 
-    // ============= STEP 4: CACHE THE RESULT =============
-    if (url) {
-      console.log('Caching analysis result...');
-      
-      const { error: upsertError } = await supabase
-        .from('property_analyses')
-        .upsert({
-          property_url: url,
-          input_hash: inputHash,
-          analysis_json: finalResult,
-          raw_extracted_data: rawData,
-          calculated_metrics: calculatedMetrics,
-          last_updated: new Date().toISOString(),
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        }, {
-          onConflict: 'property_url',
-        });
-      
-      if (upsertError) {
-        console.error('Cache upsert error:', upsertError);
-      } else {
-        console.log('Analysis cached successfully');
-      }
+    // ============= CACHE THE RESULT =============
+    console.log('Caching analysis result...');
+    
+    const { error: upsertError } = await supabase
+      .from('property_analyses')
+      .upsert({
+        property_url: propertyAddress,
+        input_hash: inputHash,
+        analysis_json: finalResult,
+        raw_extracted_data: rawData,
+        calculated_metrics: calculatedMetrics,
+        last_updated: new Date().toISOString(),
+        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+      }, {
+        onConflict: 'property_url',
+      });
+    
+    if (upsertError) {
+      console.error('Cache upsert error:', upsertError);
+    } else {
+      console.log('Analysis cached successfully');
     }
-
-    // Add debug log for diagnostics
-    const debugLog = {
-      unit_extraction: {
-        target_unit_from_url: targetUnit,
-        extracted_unit_from_ai: extractedUnit,
-        unit_match: !targetUnit || targetUnit === extractedUnit,
-      },
-      price_extraction: {
-        user_provided_price: purchasePrice || null,
-        ai_listing_price: aiListingPrice,
-        ai_fallback_price: aiFallbackPrice,
-        final_price_used: finalPrice,
-        price_source: priceSource,
-      },
-      rent_extraction: {
-        ai_extracted_rent: extractedData.raw_data?.estimated_monthly_rent || 0,
-        rent_zestimate: rentZestimate || null,
-        final_rent_used: estimatedRent,
-        is_estimated: isRentEstimated,
-      },
-      cache_status: {
-        from_cache: false,
-        cache_key: inputHash,
-      },
-    };
-
-    console.log('Debug log:', JSON.stringify(debugLog, null, 2));
 
     return new Response(JSON.stringify({
       success: true,
       mode: mode || 'quick',
       cached: false,
-      debug_log: debugLog,
+      data_provider: 'rentcast',
       ...finalResult,
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    console.error('Error in Deep Scan function:', error);
+    console.error('Error in Rentcast analysis:', error);
     return new Response(JSON.stringify({ 
       error: error instanceof Error ? error.message : 'Unknown error occurred' 
     }), {
