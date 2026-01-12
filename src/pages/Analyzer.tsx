@@ -56,6 +56,7 @@ const Analyzer = () => {
   const [address, setAddress] = useState('');
   const [purchasePrice, setPurchasePrice] = useState('');
   const [monthlyRent, setMonthlyRent] = useState('');
+  const [monthlyExpenses, setMonthlyExpenses] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [results, setResults] = useState<AnalysisResultWithCache | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -69,9 +70,27 @@ const Analyzer = () => {
   const [isEditingPrice, setIsEditingPrice] = useState(false);
   const [isEditingRent, setIsEditingRent] = useState(false);
 
+  // Check if all required fields are filled
+  const isFormValid = address.trim() !== '' && 
+    purchasePrice.trim() !== '' && 
+    monthlyRent.trim() !== '' && 
+    monthlyExpenses.trim() !== '';
+
   const handleAnalyze = async (forceRefresh = false) => {
-    if (!address) {
+    if (!address.trim()) {
       toast.error(t('analyzer.addressRequired') || 'Please enter a property address');
+      return;
+    }
+    if (!purchasePrice.trim()) {
+      toast.error(t('analyzer.priceRequired') || 'Please enter a purchase price');
+      return;
+    }
+    if (!monthlyRent.trim()) {
+      toast.error(t('analyzer.rentRequired') || 'Please enter monthly rent');
+      return;
+    }
+    if (!monthlyExpenses.trim()) {
+      toast.error(t('analyzer.expensesRequired') || 'Please enter monthly operating expenses');
       return;
     }
     
@@ -84,8 +103,9 @@ const Analyzer = () => {
       const { data, error: fnError } = await supabase.functions.invoke('analyze-property', {
         body: { 
           address,
-          purchasePrice: purchasePrice ? Number(purchasePrice) : undefined,
-          monthlyRent: monthlyRent ? Number(monthlyRent) : undefined,
+          purchasePrice: Number(purchasePrice),
+          monthlyRent: Number(monthlyRent),
+          monthlyExpenses: Number(monthlyExpenses),
           language,
           mode: 'quick',
           userId: profile?.id,
@@ -296,36 +316,59 @@ const Analyzer = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="text-sm text-muted-foreground mb-2 block">
-                  {t('analyzer.purchasePrice') || 'Purchase Price ($)'} 
-                  <span className="text-xs text-muted-foreground/70 ml-1">(optional)</span>
+                  {t('analyzer.purchasePrice') || 'Purchase Price ($)'} *
                 </label>
-                <Input
-                  type="number"
-                  value={purchasePrice}
-                  onChange={(e) => setPurchasePrice(e.target.value)}
-                  className="input-executive"
-                  placeholder="Leave blank for AVM estimate"
-                />
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    type="number"
+                    value={purchasePrice}
+                    onChange={(e) => setPurchasePrice(e.target.value)}
+                    className="input-executive pl-10"
+                    placeholder="350000"
+                  />
+                </div>
               </div>
               <div>
                 <label className="text-sm text-muted-foreground mb-2 block">
-                  {t('analyzer.monthlyRent') || 'Monthly Rent ($)'}
-                  <span className="text-xs text-muted-foreground/70 ml-1">(optional)</span>
+                  {t('analyzer.monthlyRent') || 'Monthly Rent ($)'} *
                 </label>
+                <div className="relative">
+                  <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    type="number"
+                    value={monthlyRent}
+                    onChange={(e) => setMonthlyRent(e.target.value)}
+                    className="input-executive pl-10"
+                    placeholder="2500"
+                  />
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <label className="text-sm text-muted-foreground mb-2 block">
+                {t('analyzer.monthlyExpenses') || 'Monthly Operating Expenses ($)'} *
+              </label>
+              <div className="relative">
+                <Calculator className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   type="number"
-                  value={monthlyRent}
-                  onChange={(e) => setMonthlyRent(e.target.value)}
-                  className="input-executive"
-                  placeholder="Leave blank for rent estimate"
+                  value={monthlyExpenses}
+                  onChange={(e) => setMonthlyExpenses(e.target.value)}
+                  className="input-executive pl-10"
+                  placeholder="800"
                 />
               </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {t('analyzer.expensesHint') || 'Include taxes, insurance, maintenance, HOA, etc.'}
+              </p>
             </div>
           </div>
 
           <Button
             onClick={() => handleAnalyze(false)}
-            disabled={analyzing || !address}
+            disabled={analyzing || !isFormValid}
             className="w-full btn-premium text-primary-foreground gap-2 h-12 mt-6"
           >
             {analyzing ? (
