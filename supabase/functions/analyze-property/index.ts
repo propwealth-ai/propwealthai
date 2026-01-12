@@ -396,11 +396,12 @@ serve(async (req) => {
     console.log('Deep Scan analysis:', { inputSource, mode, language, forceRefresh, userPrice: purchasePrice });
 
     const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
-    if (!GEMINI_API_KEY) {
-      throw new Error('GEMINI_API_KEY is not configured');
+    if (!GEMINI_API_KEY && !LOVABLE_API_KEY) {
+      throw new Error('No AI API key configured (GEMINI_API_KEY or LOVABLE_API_KEY required)');
     }
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
@@ -861,49 +862,103 @@ WORKFLOW:
 
 Return valid JSON only.`;
 
-    console.log('Calling Gemini API for data extraction (temperature=0 for consistency)...');
-
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: 'user',
-            parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
-          }
-        ],
-        generationConfig: {
-          temperature: 0,
-          responseMimeType: 'application/json',
-        },
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Gemini API error:', response.status, errorText);
+    // ============= AI API CALL WITH FALLBACK =============
+    // Priority: 1) Gemini API, 2) Lovable AI Gateway (fallback)
+    
+    let aiContent = '';
+    let usedProvider = 'gemini';
+    
+    // Try Gemini first if available
+    if (GEMINI_API_KEY) {
+      console.log('Calling Gemini API for data extraction (temperature=0 for consistency)...');
       
-      if (response.status === 429) {
-        return new Response(JSON.stringify({ 
-          error: 'Rate limit exceeded. Please try again in a moment.' 
-        }), {
-          status: 429,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
+      const geminiResponse = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
+            }
+          ],
+          generationConfig: {
+            temperature: 0,
+            responseMimeType: 'application/json',
+          },
+        }),
+      });
+
+      if (geminiResponse.ok) {
+        const geminiData = await geminiResponse.json();
+        aiContent = geminiData.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        console.log('Gemini response received successfully');
+      } else {
+        const errorText = await geminiResponse.text();
+        console.warn('Gemini API failed, falling back to Lovable AI:', geminiResponse.status, errorText);
+        usedProvider = 'lovable_fallback';
+      }
+    }
+    
+    // Fallback to Lovable AI Gateway if Gemini failed or not configured
+    if (!aiContent && LOVABLE_API_KEY) {
+      console.log('Using Lovable AI Gateway (fallback)...');
+      usedProvider = 'lovable';
+      
+      const lovableResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-2.5-flash',
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt }
+          ],
+          temperature: 0,
+          response_format: { type: 'json_object' },
+        }),
+      });
+
+      if (!lovableResponse.ok) {
+        const errorText = await lovableResponse.text();
+        console.error('Lovable AI Gateway error:', lovableResponse.status, errorText);
+        
+        if (lovableResponse.status === 429) {
+          return new Response(JSON.stringify({ 
+            error: 'Rate limit exceeded on all AI providers. Please try again in a moment.' 
+          }), {
+            status: 429,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        if (lovableResponse.status === 402) {
+          return new Response(JSON.stringify({ 
+            error: 'AI credits exhausted. Please add credits to continue.' 
+          }), {
+            status: 402,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          });
+        }
+        
+        throw new Error(`AI Gateway error: ${lovableResponse.status}`);
       }
       
-      throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
+      const lovableData = await lovableResponse.json();
+      aiContent = lovableData.choices?.[0]?.message?.content || '';
+      console.log('Lovable AI response received successfully');
+    }
+    
+    if (!aiContent) {
+      throw new Error('Failed to get response from any AI provider');
     }
 
-    const data = await response.json();
-    
-    // Gemini API response format: { candidates: [{ content: { parts: [{ text: "..." }] } }] }
-    const aiContent = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
-    
-    console.log('Gemini response received, parsing...');
+    console.log(`AI response received from ${usedProvider}, parsing...`);
 
     let extractedData;
     try {
@@ -913,8 +968,8 @@ Return valid JSON only.`;
       if (jsonMatch) {
         extractedData = JSON.parse(jsonMatch[0]);
       } else {
-        console.error('Failed to parse Gemini response:', aiContent);
-        throw new Error('Failed to parse Gemini response as JSON');
+        console.error('Failed to parse AI response:', aiContent);
+        throw new Error('Failed to parse AI response as JSON');
       }
     }
 
