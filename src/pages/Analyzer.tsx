@@ -58,11 +58,23 @@ const Analyzer = () => {
   const [monthlyRent, setMonthlyRent] = useState('');
   const [monthlyExpenses, setMonthlyExpenses] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
+  const [estimating, setEstimating] = useState(false);
   const [results, setResults] = useState<AnalysisResultWithCache | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'quick' | 'deep_scan'>('deep_scan');
   const [savingToPortfolio, setSavingToPortfolio] = useState(false);
   const [savedToPortfolio, setSavedToPortfolio] = useState(false);
+  const [estimateInfo, setEstimateInfo] = useState<{
+    priceRange?: { low: number; high: number };
+    rentRange?: { low: number; high: number };
+    propertyDetails?: {
+      bedrooms?: number;
+      bathrooms?: number;
+      sqft?: number;
+      yearBuilt?: number;
+      propertyType?: string;
+    };
+  } | null>(null);
   
   // Manual override state for editable fields
   const [editedPrice, setEditedPrice] = useState<number | null>(null);
@@ -76,9 +88,70 @@ const Analyzer = () => {
     monthlyRent.trim() !== '' && 
     monthlyExpenses.trim() !== '';
 
+  const handleEstimate = async () => {
+    if (!address.trim()) {
+      toast.error(t('analyzer.addressRequired') || 'Please enter a property address first');
+      return;
+    }
+    
+    setEstimating(true);
+    setEstimateInfo(null);
+    
+    try {
+      const { data, error: fnError } = await supabase.functions.invoke('estimate-property', {
+        body: { address }
+      });
+
+      if (fnError) {
+        throw new Error(fnError.message);
+      }
+
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to fetch estimates');
+      }
+
+      if (data.hasData) {
+        // Fill in the fields with estimates
+        if (data.estimates.price > 0) {
+          setPurchasePrice(data.estimates.price.toString());
+        }
+        if (data.estimates.rent > 0) {
+          setMonthlyRent(data.estimates.rent.toString());
+        }
+        if (data.estimates.monthlyExpenses > 0) {
+          setMonthlyExpenses(data.estimates.monthlyExpenses.toString());
+        }
+        
+        // Store additional info for display
+        setEstimateInfo({
+          priceRange: data.estimates.priceRange,
+          rentRange: data.estimates.rentRange,
+          propertyDetails: data.propertyDetails,
+        });
+        
+        toast.success(t('analyzer.estimatesLoaded') || 'Estimates loaded from Rentcast!');
+      } else {
+        toast.warning(t('analyzer.noEstimatesFound') || 'No data found for this address. Please enter values manually.');
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch estimates';
+      toast.error(message);
+    } finally {
+      setEstimating(false);
+    }
+  };
+
   const handleAnalyze = async (forceRefresh = false) => {
     if (!address.trim()) {
       toast.error(t('analyzer.addressRequired') || 'Please enter a property address');
+      return;
+    }
+    if (!purchasePrice.trim()) {
+      toast.error(t('analyzer.priceRequired') || 'Please enter a purchase price');
+      return;
+    }
+    if (!monthlyRent.trim()) {
+      toast.error(t('analyzer.rentRequired') || 'Please enter monthly rent');
       return;
     }
     if (!purchasePrice.trim()) {
@@ -303,15 +376,84 @@ const Analyzer = () => {
                 <Home className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   value={address}
-                  onChange={(e) => setAddress(e.target.value)}
+                  onChange={(e) => {
+                    setAddress(e.target.value);
+                    setEstimateInfo(null); // Clear estimates when address changes
+                  }}
                   className="input-executive pl-10"
                   placeholder="123 Main St, Miami, FL 33101"
                 />
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {t('analyzer.addressHint') || 'Include street, city, state and zip for best results'}
-              </p>
+              <div className="flex items-center justify-between mt-2">
+                <p className="text-xs text-muted-foreground">
+                  {t('analyzer.addressHint') || 'Include street, city, state and zip for best results'}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleEstimate}
+                  disabled={estimating || !address.trim()}
+                  className="gap-1.5 text-xs h-7 border-primary/30 text-primary hover:bg-primary/10"
+                >
+                  {estimating ? (
+                    <>
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                      {t('analyzer.estimating') || 'Estimating...'}
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3 h-3" />
+                      {t('analyzer.autoEstimate') || 'Auto-Estimate'}
+                    </>
+                  )}
+                </Button>
+              </div>
             </div>
+
+            {/* Property Details from Estimate */}
+            {estimateInfo?.propertyDetails && (
+              <div className="p-3 rounded-lg bg-secondary/30 border border-border/50">
+                <div className="flex items-center gap-2 mb-2">
+                  <Building2 className="w-4 h-4 text-primary" />
+                  <span className="text-sm font-medium text-foreground">
+                    {t('analyzer.propertyDetails') || 'Property Details'}
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  {estimateInfo.propertyDetails.propertyType && (
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground">{t('analyzer.type') || 'Type'}</span>
+                      <span className="text-foreground font-medium">{estimateInfo.propertyDetails.propertyType}</span>
+                    </div>
+                  )}
+                  {estimateInfo.propertyDetails.bedrooms && (
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground">{t('analyzer.beds') || 'Beds'}</span>
+                      <span className="text-foreground font-medium">{estimateInfo.propertyDetails.bedrooms}</span>
+                    </div>
+                  )}
+                  {estimateInfo.propertyDetails.bathrooms && (
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground">{t('analyzer.baths') || 'Baths'}</span>
+                      <span className="text-foreground font-medium">{estimateInfo.propertyDetails.bathrooms}</span>
+                    </div>
+                  )}
+                  {estimateInfo.propertyDetails.sqft && (
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground">{t('analyzer.sqft') || 'Sqft'}</span>
+                      <span className="text-foreground font-medium">{estimateInfo.propertyDetails.sqft.toLocaleString()}</span>
+                    </div>
+                  )}
+                  {estimateInfo.propertyDetails.yearBuilt && (
+                    <div className="flex flex-col">
+                      <span className="text-muted-foreground">{t('analyzer.yearBuilt') || 'Built'}</span>
+                      <span className="text-foreground font-medium">{estimateInfo.propertyDetails.yearBuilt}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -328,6 +470,11 @@ const Analyzer = () => {
                     placeholder="350000"
                   />
                 </div>
+                {estimateInfo?.priceRange && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t('analyzer.range') || 'Range'}: ${estimateInfo.priceRange.low.toLocaleString()} - ${estimateInfo.priceRange.high.toLocaleString()}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="text-sm text-muted-foreground mb-2 block">
@@ -343,6 +490,11 @@ const Analyzer = () => {
                     placeholder="2500"
                   />
                 </div>
+                {estimateInfo?.rentRange && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t('analyzer.range') || 'Range'}: ${estimateInfo.rentRange.low.toLocaleString()} - ${estimateInfo.rentRange.high.toLocaleString()}
+                  </p>
+                )}
               </div>
             </div>
             
