@@ -109,7 +109,8 @@ function calculateDeterministicMetrics(
   raw: RawExtractedData, 
   userProvidedPrice?: number, 
   rentcastPrice?: number,
-  comparables?: any[]
+  comparables?: any[],
+  userProvidedExpenses?: number
 ): CalculatedMetrics {
   const validation_warnings: ValidationWarning[] = [];
   
@@ -180,38 +181,64 @@ function calculateDeterministicMetrics(
   // ============= EXPENSE CALCULATIONS =============
   const { estimated_monthly_rent } = raw;
   
-  let hoa_fees_monthly = 0;
-  if (raw.hoa_fees && raw.hoa_fees > 0) {
-    if (raw.hoa_fees > 2000) {
-      hoa_fees_monthly = Math.round(raw.hoa_fees / 12);
-    } else {
-      hoa_fees_monthly = raw.hoa_fees;
+  // If user provided monthly expenses, use them directly
+  let operating_expenses: number;
+  let opex_breakdown: CalculatedMetrics['opex_breakdown'];
+  
+  if (userProvidedExpenses && userProvidedExpenses > 0) {
+    // User-provided expenses - distribute proportionally as an estimate
+    operating_expenses = userProvidedExpenses;
+    
+    // Create estimated breakdown from user's total
+    const taxRatio = 0.30; // ~30% taxes
+    const insuranceRatio = 0.15; // ~15% insurance
+    const maintenanceRatio = 0.20; // ~20% maintenance
+    const managementRatio = 0.25; // ~25% management
+    const vacancyRatio = 0.10; // ~10% vacancy
+    
+    opex_breakdown = {
+      property_management: Math.round(userProvidedExpenses * managementRatio),
+      vacancy: Math.round(userProvidedExpenses * vacancyRatio),
+      maintenance: Math.round(userProvidedExpenses * maintenanceRatio),
+      insurance: Math.round(userProvidedExpenses * insuranceRatio),
+      property_taxes: Math.round(userProvidedExpenses * taxRatio),
+      hoa_fees: 0,
+    };
+  } else {
+    // Calculate expenses from property data
+    let hoa_fees_monthly = 0;
+    if (raw.hoa_fees && raw.hoa_fees > 0) {
+      if (raw.hoa_fees > 2000) {
+        hoa_fees_monthly = Math.round(raw.hoa_fees / 12);
+      } else {
+        hoa_fees_monthly = raw.hoa_fees;
+      }
     }
+
+    let property_taxes_annual = raw.property_taxes_annual || Math.round(finalPrice * 0.015);
+    let insurance_annual = raw.insurance_annual || Math.round(finalPrice * 0.005);
+
+    // OpEx BREAKDOWN
+    const property_management = Math.round(estimated_monthly_rent * 0.10);
+    const vacancy = Math.round(estimated_monthly_rent * 0.06);
+    const maintenance = Math.round(estimated_monthly_rent * 0.05);
+    const insurance = Math.round(insurance_annual / 12);
+    const property_taxes = Math.round(property_taxes_annual / 12);
+    
+    opex_breakdown = {
+      property_management,
+      vacancy,
+      maintenance,
+      insurance,
+      property_taxes,
+      hoa_fees: hoa_fees_monthly,
+    };
+    
+    operating_expenses = property_management + vacancy + maintenance + insurance + property_taxes + hoa_fees_monthly;
   }
-
-  let property_taxes_annual = raw.property_taxes_annual || Math.round(finalPrice * 0.015);
-  let insurance_annual = raw.insurance_annual || Math.round(finalPrice * 0.005);
-
-  // ============= OpEx BREAKDOWN =============
-  const annualRent = estimated_monthly_rent * 12;
   
-  const property_management = Math.round(estimated_monthly_rent * 0.10);
-  const vacancy = Math.round(estimated_monthly_rent * 0.06);
-  const maintenance = Math.round(estimated_monthly_rent * 0.05);
-  const insurance = Math.round(insurance_annual / 12);
-  const property_taxes = Math.round(property_taxes_annual / 12);
-  
-  const opex_breakdown = {
-    property_management,
-    vacancy,
-    maintenance,
-    insurance,
-    property_taxes,
-    hoa_fees: hoa_fees_monthly,
-  };
-  
-  const operating_expenses = property_management + vacancy + maintenance + insurance + property_taxes + hoa_fees_monthly;
   const annual_opex = operating_expenses * 12;
+  const annualRent = estimated_monthly_rent * 12;
 
   // ============= EXPENSE RATIO CHECK =============
   const expenseRatio = operating_expenses / estimated_monthly_rent;
@@ -219,9 +246,9 @@ function calculateDeterministicMetrics(
   
   if (expenseRatio > 0.6) {
     const expenseItems = [
-      { name: 'HOA Fees', value: hoa_fees_monthly },
-      { name: 'Property Taxes', value: property_taxes },
-      { name: 'Insurance', value: insurance },
+      { name: 'HOA Fees', value: opex_breakdown.hoa_fees },
+      { name: 'Property Taxes', value: opex_breakdown.property_taxes },
+      { name: 'Insurance', value: opex_breakdown.insurance },
     ].sort((a, b) => b.value - a.value);
     
     const topExpense = expenseItems[0];
@@ -475,7 +502,7 @@ serve(async (req) => {
   }
 
   try {
-    const { url, address, purchasePrice, monthlyRent, language, mode, userId, teamId, forceRefresh } = await req.json();
+    const { url, address, purchasePrice, monthlyRent, monthlyExpenses, language, mode, userId, teamId, forceRefresh } = await req.json();
     
     // For Rentcast, we need an address - extract from URL or use provided address
     let propertyAddress = address;
@@ -506,7 +533,7 @@ serve(async (req) => {
       });
     }
 
-    console.log('Rentcast analysis:', { propertyAddress, mode, language, userPrice: purchasePrice });
+    console.log('Rentcast analysis:', { propertyAddress, mode, language, userPrice: purchasePrice, userRent: monthlyRent, userExpenses: monthlyExpenses });
 
     const RENTCAST_API_KEY = Deno.env.get('RENTCAST_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
@@ -630,7 +657,8 @@ serve(async (req) => {
       rawData, 
       purchasePrice, 
       valueEstimate?.price,
-      salesComparables
+      salesComparables,
+      monthlyExpenses
     );
 
     console.log('Calculated metrics:', {
