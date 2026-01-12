@@ -395,12 +395,12 @@ serve(async (req) => {
     const inputSource = url || address;
     console.log('Deep Scan analysis:', { inputSource, mode, language, forceRefresh, userPrice: purchasePrice });
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL');
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
     
-    if (!LOVABLE_API_KEY) {
-      throw new Error('LOVABLE_API_KEY is not configured');
+    if (!GEMINI_API_KEY) {
+      throw new Error('GEMINI_API_KEY is not configured');
     }
 
     const supabase = createClient(SUPABASE_URL!, SUPABASE_SERVICE_ROLE_KEY!);
@@ -861,28 +861,30 @@ WORKFLOW:
 
 Return valid JSON only.`;
 
-    console.log('Calling AI for data extraction (temperature=0 for consistency)...');
+    console.log('Calling Gemini API for data extraction (temperature=0 for consistency)...');
 
-    const response = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt }
+        contents: [
+          {
+            role: 'user',
+            parts: [{ text: `${systemPrompt}\n\n${userPrompt}` }]
+          }
         ],
-        temperature: 0,
-        response_format: { type: 'json_object' },
+        generationConfig: {
+          temperature: 0,
+          responseMimeType: 'application/json',
+        },
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('AI Gateway error:', response.status, errorText);
+      console.error('Gemini API error:', response.status, errorText);
       
       if (response.status === 429) {
         return new Response(JSON.stringify({ 
@@ -893,22 +895,15 @@ Return valid JSON only.`;
         });
       }
       
-      if (response.status === 402) {
-        return new Response(JSON.stringify({ 
-          error: 'AI credits exhausted. Please add credits to continue.' 
-        }), {
-          status: 402,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      
-      throw new Error(`AI Gateway error: ${response.status}`);
+      throw new Error(`Gemini API error: ${response.status} - ${errorText}`);
     }
 
     const data = await response.json();
-    const aiContent = data.choices?.[0]?.message?.content || '';
     
-    console.log('AI response received, parsing...');
+    // Gemini API response format: { candidates: [{ content: { parts: [{ text: "..." }] } }] }
+    const aiContent = data.candidates?.[0]?.content?.parts?.[0]?.text || '';
+    
+    console.log('Gemini response received, parsing...');
 
     let extractedData;
     try {
@@ -918,7 +913,8 @@ Return valid JSON only.`;
       if (jsonMatch) {
         extractedData = JSON.parse(jsonMatch[0]);
       } else {
-        throw new Error('Failed to parse AI response as JSON');
+        console.error('Failed to parse Gemini response:', aiContent);
+        throw new Error('Failed to parse Gemini response as JSON');
       }
     }
 
