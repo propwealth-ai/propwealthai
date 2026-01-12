@@ -70,12 +70,8 @@ const Analyzer = () => {
   const [isEditingRent, setIsEditingRent] = useState(false);
 
   const handleAnalyze = async (forceRefresh = false) => {
-    if (mode === 'deep_scan' && !url) {
-      toast.error(t('analyzer.urlRequired') || 'Please enter a property URL for Deep Scan');
-      return;
-    }
-    if (mode === 'quick' && (!address || !purchasePrice || !monthlyRent)) {
-      toast.error(t('analyzer.fillAllFields') || 'Please fill in all fields');
+    if (!address) {
+      toast.error(t('analyzer.addressRequired') || 'Please enter a property address');
       return;
     }
     
@@ -87,12 +83,11 @@ const Analyzer = () => {
     try {
       const { data, error: fnError } = await supabase.functions.invoke('analyze-property', {
         body: { 
-          url: mode === 'deep_scan' ? url : undefined,
-          address: mode === 'quick' ? address : undefined,
-          purchasePrice: purchasePrice || undefined,
-          monthlyRent: monthlyRent || undefined,
+          address,
+          purchasePrice: purchasePrice ? Number(purchasePrice) : undefined,
+          monthlyRent: monthlyRent ? Number(monthlyRent) : undefined,
           language,
-          mode,
+          mode: 'quick',
           userId: profile?.id,
           teamId: profile?.team_id,
           forceRefresh,
@@ -256,7 +251,7 @@ const Analyzer = () => {
           <div>
             <h1 className="text-3xl font-bold text-foreground">{t('nav.analyzer')}</h1>
             <p className="text-muted-foreground">
-              {t('analyzer.subtitle') || 'Powered by Gemini 3 Pro with Deep Semantic Inference'}
+              {t('analyzer.subtitle') || 'Powered by Rentcast Real Estate Data'}
             </p>
           </div>
         </div>
@@ -265,121 +260,72 @@ const Analyzer = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Input Form */}
         <div className="glass-card p-6">
-          <Tabs value={mode} onValueChange={(v) => setMode(v as 'quick' | 'deep_scan')}>
-            <TabsList className="grid w-full grid-cols-2 mb-6">
-              <TabsTrigger value="deep_scan" className="gap-2">
-                <Zap className="w-4 h-4" />
-                {t('analyzer.deepScan') || 'Deep Scan'}
-              </TabsTrigger>
-              <TabsTrigger value="quick" className="gap-2">
-                <Calculator className="w-4 h-4" />
-                {t('analyzer.quickAnalysis') || 'Quick Analysis'}
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="deep_scan" className="space-y-4">
-              <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-                <div className="flex items-start gap-3">
-                  <Sparkles className="w-5 h-5 text-primary mt-0.5" />
-                  <div>
-                    <p className="text-sm font-medium text-foreground">
-                      {t('analyzer.deepScanInfo') || 'AI-Powered URL Analysis'}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {t('analyzer.deepScanDesc') || 'Paste any property listing URL. The AI will extract data, detect jurisdiction, and perform full financial analysis.'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
+          <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 mb-6">
+            <div className="flex items-start gap-3">
+              <Database className="w-5 h-5 text-primary mt-0.5" />
               <div>
-                <label className="text-sm text-muted-foreground mb-2 block">
-                  {t('analyzer.propertyUrl') || 'Property Listing URL'}
-                </label>
-                <div className="relative">
-                  <Link className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    className="input-executive pl-10"
-                    placeholder="https://zillow.com/... or https://dubizzle.com/..."
-                  />
-                </div>
+                <p className="text-sm font-medium text-foreground">
+                  {t('analyzer.rentcastInfo') || 'Rentcast Property Data'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {t('analyzer.rentcastDesc') || 'Enter a US property address to get real estate valuation, rent estimates, and market comparables from Rentcast.'}
+                </p>
               </div>
+            </div>
+          </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">
-                    {t('analyzer.priceOverride') || 'Price Override (optional)'}
-                  </label>
-                  <Input
-                    type="number"
-                    value={purchasePrice}
-                    onChange={(e) => setPurchasePrice(e.target.value)}
-                    className="input-executive"
-                    placeholder="350000"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">
-                    {t('analyzer.rentOverride') || 'Rent Override (optional)'}
-                  </label>
-                  <Input
-                    type="number"
-                    value={monthlyRent}
-                    onChange={(e) => setMonthlyRent(e.target.value)}
-                    className="input-executive"
-                    placeholder="2500"
-                  />
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="quick" className="space-y-4">
-              <div>
-                <label className="text-sm text-muted-foreground mb-2 block">
-                  {t('analyzer.address') || 'Property Address'}
-                </label>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm text-muted-foreground mb-2 block">
+                {t('analyzer.address') || 'Property Address'} *
+              </label>
+              <div className="relative">
+                <Home className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  className="input-executive"
-                  placeholder="123 Investment Ave, Miami FL 33101"
+                  className="input-executive pl-10"
+                  placeholder="123 Main St, Miami, FL 33101"
                 />
               </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">
-                    {t('analyzer.purchasePrice') || 'Purchase Price ($)'}
-                  </label>
-                  <Input
-                    type="number"
-                    value={purchasePrice}
-                    onChange={(e) => setPurchasePrice(e.target.value)}
-                    className="input-executive"
-                    placeholder="350000"
-                  />
-                </div>
-                <div>
-                  <label className="text-sm text-muted-foreground mb-2 block">
-                    {t('analyzer.monthlyRent') || 'Monthly Rent ($)'}
-                  </label>
-                  <Input
-                    type="number"
-                    value={monthlyRent}
-                    onChange={(e) => setMonthlyRent(e.target.value)}
-                    className="input-executive"
-                    placeholder="2500"
-                  />
-                </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {t('analyzer.addressHint') || 'Include street, city, state and zip for best results'}
+              </p>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm text-muted-foreground mb-2 block">
+                  {t('analyzer.purchasePrice') || 'Purchase Price ($)'} 
+                  <span className="text-xs text-muted-foreground/70 ml-1">(optional)</span>
+                </label>
+                <Input
+                  type="number"
+                  value={purchasePrice}
+                  onChange={(e) => setPurchasePrice(e.target.value)}
+                  className="input-executive"
+                  placeholder="Leave blank for AVM estimate"
+                />
               </div>
-            </TabsContent>
-          </Tabs>
+              <div>
+                <label className="text-sm text-muted-foreground mb-2 block">
+                  {t('analyzer.monthlyRent') || 'Monthly Rent ($)'}
+                  <span className="text-xs text-muted-foreground/70 ml-1">(optional)</span>
+                </label>
+                <Input
+                  type="number"
+                  value={monthlyRent}
+                  onChange={(e) => setMonthlyRent(e.target.value)}
+                  className="input-executive"
+                  placeholder="Leave blank for rent estimate"
+                />
+              </div>
+            </div>
+          </div>
 
           <Button
             onClick={() => handleAnalyze(false)}
-            disabled={analyzing}
+            disabled={analyzing || !address}
             className="w-full btn-premium text-primary-foreground gap-2 h-12 mt-6"
           >
             {analyzing ? (
@@ -390,14 +336,12 @@ const Analyzer = () => {
                     <Sparkles className="w-5 h-5 opacity-50" />
                   </div>
                 </div>
-                {t('analyzer.deepScanning') || 'Deep Scanning...'}
+                {t('analyzer.analyzing') || 'Analyzing...'}
               </>
             ) : (
               <>
                 <Zap className="w-5 h-5" />
-                {mode === 'deep_scan' 
-                  ? (t('analyzer.startDeepScan') || 'Start Deep Scan')
-                  : (t('analyzer.analyze') || 'Analyze Property')}
+                {t('analyzer.analyze') || 'Analyze Property'}
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
